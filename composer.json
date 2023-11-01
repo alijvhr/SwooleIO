@@ -1,0 +1,34 @@
+{
+  "name": "alijvhr/swoole.io",
+  "description": "This Package provides socket.io implementation in php and openswoole",
+  "keywords": [
+    "swoole",
+    "performance",
+    "http",
+    "websocket",
+    "socket server",
+    "socket.io",
+    "multitasking",
+    "server"
+  ],
+  "minimum-stability": "dev",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "alijvhr",
+      "email": "email@example.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "ext-json": "*"
+  },
+  "require-dev": {
+    "swoole/ide-helper": "@dev"
+  },
+  "autoload": {
+    "psr-4": {
+      "SwooleIO\\": "src"
+    }
+  }
+}
