@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\Contracts;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Contracts;
 
 interface RoomContract
 {

@@ -49,7 +49,7 @@ class Packet extends EngineIOPacket
         parent::__construct($packet);
     }
 
-    public static function create(string $type, ...$params): self
+    public static function create(string $type, ...$data): self
     {
         $type_id = array_search($type, self::types);
         if ($type_id === false)
@@ -57,7 +57,16 @@ class Packet extends EngineIOPacket
         $object = new static();
         $object->packet_type = 4;
         $object->payload_type = $type_id;
-        $object->params = $params;
+        $object->namespace = '/';
+        if ($type_id == 2) {
+            $object->event = $data[0];
+            $object->params = array_slice($data, 1);
+            $object->data = $data;
+        } else {
+            $object->params = $data;
+            $object->data = $data;
+        }
+
         return $object;
     }
 
@@ -81,12 +90,23 @@ class Packet extends EngineIOPacket
         return $this->namespace;
     }
 
+    public function setNamespace(string $namespace = '/'): string
+    {
+        return $this->namespace = $namespace;
+    }
+
     /**
      * @return int
      */
     public function getId(): int
     {
         return $this->id;
+    }
+
+    public function setId(int $id): self
+    {
+        $this->id = $id;
+        return $this;
     }
 
     /**
@@ -105,6 +125,24 @@ class Packet extends EngineIOPacket
     public function getEvent(): string
     {
         return $this->event;
+    }
+
+    public function __toString()
+    {
+        return $this->encode();
+    }
+
+    public function encode(): string
+    {
+        $this->packet_type = 4;
+        $id = $this->id ?? '';
+        $namespace = "$this->namespace,";
+        $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
+        if (in_array($this->payload_type, [2, 3, 5, 6]))
+            $this->payload = "$this->payload_type$namespace$id$data";
+        else
+            $this->payload = "$this->payload_type$data";
+        return parent::encode();
     }
 
     protected function parse(): self

@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\Room;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\Room;
 
 class Room
 {

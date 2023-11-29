@@ -21,10 +21,13 @@
   ],
   "require": {
     "php": ">=7.4",
-    "ext-json": "*"
+    "ext-json": "*",
+    "psr/http-server-middleware": "*",
+    "psr/http-server-handler": "*"
   },
   "require-dev": {
-    "swoole/ide-helper": "@dev"
+    "openswoole/ide-helper": ">=22.0.1",
+    "openswoole/core": ">=22.1.4"
   },
   "autoload": {
     "psr-4": {

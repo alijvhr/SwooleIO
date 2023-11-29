@@ -1,8 +1,8 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\Rooms;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\Rooms;
 
-use SwooleIO\Http\Controllers\RoomController;
+use SwooleIO\Psr\Middleware\Psr\Middleware\Http\Controllers\RoomController;
 
 /**
  * @method create(int $id, array $options, string $room)

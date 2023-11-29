@@ -1,10 +1,10 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\Rooms;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\Rooms;
 
 use InvalidArgumentException;
 use Swoole\Table;
-use SwooleIO\Http\Table\SwooleTable;
+use SwooleIO\Psr\Middleware\Psr\Middleware\Http\Table\SwooleTable;
 
 class TableRoom implements RoomContract
 {

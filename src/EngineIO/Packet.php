@@ -25,6 +25,9 @@ class Packet
     ];
 
     protected string $packet = '';
+
+    /** @var Packet[]  */
+    protected array $next = [];
     protected string $payload;
     protected bool $valid;
     protected int $packet_type;
@@ -70,13 +73,14 @@ class Packet
         }
     }
 
-    public static function create(string $type): self
+    public static function create(string $type, $data): self
     {
         $type_id = array_search($type, self::types);
         if ($type_id === false)
             throw new InvalidPacketException();
         $object = new static();
         $object->packet_type = $type_id;
+        $object->payload = json_encode($data);
         return $object;
     }
 
@@ -96,5 +100,25 @@ class Packet
     public function getId(): int
     {
         return $this->id;
+    }
+
+
+    public function __toString()
+    {
+        return $this->encode();
+    }
+
+    public function encode(): string
+    {
+        foreach ($this->next as $packet){
+            $this->payload .= chr(30).$packet->encode();
+        }
+        return "$this->packet_type$this->payload";
+    }
+
+    public function append(Packet $packet): Packet
+    {
+        $this->next[] = $packet;
+        return $this;
     }
 }

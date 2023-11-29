@@ -2,9 +2,6 @@
 
 namespace SwooleIO\SocketIO;
 
-use SwooleIO\Contracts\Middleware;
-use SwooleIO\Server;
-
 class Route
 {
     protected static array $routes = [];

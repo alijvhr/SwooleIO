@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\Rooms;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\Rooms;
 
 use ArrayObject;
 use Illuminate\Contracts\Support\Arrayable;

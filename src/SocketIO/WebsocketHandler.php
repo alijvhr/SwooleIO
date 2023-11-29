@@ -1,13 +1,13 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\SocketIO;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\SocketIO;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Config;
 use Swoole\Websocket\Frame;
-use SwooleIO\Http\Server\Facades\Server;
-use SwooleIO\Http\Websocket\HandlerContract;
+use SwooleIO\Psr\Middleware\Psr\Middleware\Http\Server\Facades\Server;
+use SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\HandlerContract;
 
 class WebsocketHandler implements HandlerContract
 {

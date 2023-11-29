@@ -1,8 +1,8 @@
 <?php
 
-namespace SwooleIO\Http\Websocket\SocketIO\Strategies;
+namespace SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\SocketIO\Strategies;
 
-use SwooleIO\Http\Websocket\SocketIO\Packet;
+use SwooleIO\Psr\Middleware\Psr\Middleware\Http\Websocket\SocketIO\Packet;
 
 class HeartbeatStrategy
 {
