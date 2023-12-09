@@ -37,7 +37,7 @@ class Packet extends EngineIOPacket
     protected array $params;
     protected $data;
     protected string $event;
-    protected int $payload_type;
+    protected int $socket_type;
 
     protected string $namespace;
     protected array $binary_attachments;
@@ -55,8 +55,8 @@ class Packet extends EngineIOPacket
         if ($type_id === false)
             throw new InvalidPacketException();
         $object = new static();
-        $object->packet_type = 4;
-        $object->payload_type = $type_id;
+        $object->engine_type = 4;
+        $object->socket_type = $type_id;
         $object->namespace = '/';
         if ($type_id == 2) {
             $object->event = $data[0];
@@ -75,9 +75,11 @@ class Packet extends EngineIOPacket
      *
      * @return string
      */
-    public function getPayloadType(bool $as_int)
+    public function getSocketType(bool $as_int)
     {
-        return $as_int ? $this->payload_type : self::types[$this->payload_type];
+        if ($this->engine_type == 4)
+            return $as_int ? $this->socket_type : self::types[$this->socket_type];
+        return null;
     }
 
     public function getBinaryAttachments(): array
@@ -134,14 +136,14 @@ class Packet extends EngineIOPacket
 
     public function encode(): string
     {
-        $this->packet_type = 4;
+        $this->engine_type = 4;
         $id = $this->id ?? '';
         $namespace = "$this->namespace,";
         $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
-        if (in_array($this->payload_type, [2, 3, 5, 6]))
-            $this->payload = "$this->payload_type$namespace$id$data";
+        if (in_array($this->socket_type, [2, 3, 5, 6]))
+            $this->payload = "$this->socket_type$namespace$id$data";
         else
-            $this->payload = "$this->payload_type$data";
+            $this->payload = "$this->socket_type$data";
         return parent::encode();
     }
 
@@ -150,16 +152,16 @@ class Packet extends EngineIOPacket
         parent::parse();
         $packet = $this->payload;
         $valid = true;
-        if ($this->packet_type === 4) {
+        if ($this->engine_type === 4) {
             preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $packet, $parts);
-            $this->payload_type = +$parts[1];
+            $this->socket_type = +$parts[1];
             $this->binary_attachments = [];
             $this->binary_count = +substr($parts[2], 0, -1);
             $this->namespace = substr($parts[3], 0, -1);
             $this->id = $parts[4];
             $payload = json_decode($parts[5], true);
             $valid = false;
-            switch ($this->payload_type) {
+            switch ($this->socket_type) {
                 case 6:
                 case 3:
                 case 0:

@@ -26,11 +26,11 @@ class Packet
 
     protected string $packet = '';
 
-    /** @var Packet[]  */
+    /** @var Packet[] */
     protected array $next = [];
     protected string $payload;
     protected bool $valid;
-    protected int $packet_type;
+    protected int $engine_type;
     protected int $id;
 
     public function __construct(string $packet = null)
@@ -55,7 +55,7 @@ class Packet
         $type = $packet[0] ?? '';
         if (is_numeric($type) && isset(self::types[$type])) {
             $this->payload = substr($packet, 1);
-            $this->packet_type = +$type;
+            $this->engine_type = +$type;
             $this->valid = true;
         } else {
             $this->valid = false;
@@ -73,20 +73,20 @@ class Packet
         }
     }
 
-    public static function create(string $type, $data): self
+    public static function create(string $type, ...$data): self
     {
         $type_id = array_search($type, self::types);
         if ($type_id === false)
             throw new InvalidPacketException();
         $object = new static();
-        $object->packet_type = $type_id;
-        $object->payload = json_encode($data);
+        $object->engine_type = $type_id;
+        $object->payload = json_encode(count($data[0]) == 1 ? $data[0] : $data);
         return $object;
     }
 
-    public function getPacketType(bool $as_int)
+    public function getEngineType(bool $as_int = false)
     {
-        return $as_int ? $this->packet_type : self::types[$this->packet_type];
+        return $as_int ? $this->engine_type : self::types[$this->engine_type];
     }
 
     public function getPayload(): ?string
@@ -110,10 +110,10 @@ class Packet
 
     public function encode(): string
     {
-        foreach ($this->next as $packet){
-            $this->payload .= chr(30).$packet->encode();
+        foreach ($this->next as $packet) {
+            $this->payload .= chr(30) . $packet->encode();
         }
-        return "$this->packet_type$this->payload";
+        return "$this->engine_type$this->payload";
     }
 
     public function append(Packet $packet): Packet

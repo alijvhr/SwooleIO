@@ -9,34 +9,34 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\SocketIO\Packet as SioPacket;
-use SwooleIO\SwooleIO;
+use SwooleIO\Server;
+use function SwooleIO\swooleio;
+use function SwooleIO\uuid;
 
 class EngineIOMiddleware implements MiddlewareInterface
 {
 
     protected string $path;
-    protected int $pathLen;
 
     public function __construct(string $SocketIOPath = '/socket.io')
     {
         $this->path = $SocketIOPath;
-        $this->pathLen = strlen($SocketIOPath);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        $server = swooleio();
         $uri = $request->getUri();
-        $path = substr($uri, 0, $this->pathLen);
-        if ($path == $this->path) {
+        if (preg_match("/^$this->path/", $uri)) {
             $GET = $request->getQueryParams();
             if (isset($GET['sid'])) {
-                $response = new Response($packet);
+                return new Response(SioPacket::create('connect')->encode());
             }
-            $sid = base64_encode(substr(SwooleIO::UUID(), 0, 19) . SwooleIO::getServerID());
-            $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => ["websocket"], "pingInterval" => 25000, "pingTimeout" => 5000]);
-            $packet->append(SioPacket::create('connect'));
-            $response = new Response($packet);
-            return $response->withHeader('x-a', '1234');
+            $sid = base64_encode(substr(uuid(), 0, 19) . $server->getServerID());
+            $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $server->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);
+            $response = new Response($packet->encode());
+            swooleio()->newSid($sid, ['user' => $request->getAttribute('uid', 0), 'time' => time()]);
+            return $response->withHeader('sid', $sid);
         } else
             return $handler->handle($request);
     }
