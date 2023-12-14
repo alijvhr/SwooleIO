@@ -6,7 +6,7 @@ abstract class Singleton {
 
     protected static $instances = [];
 
-    private final function __construct() {
+    private function __construct() {
         $this->init();
     }
 
@@ -25,6 +25,6 @@ abstract class Singleton {
         return self::$instances[$cls];
     }
 
-    private final function __clone() {
+    private function __clone() {
     }
 }

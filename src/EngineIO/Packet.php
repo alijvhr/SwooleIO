@@ -27,7 +27,8 @@ class Packet
     protected string $packet = '';
 
     /** @var Packet[] */
-    protected array $next = [];
+    protected array $order = [];
+    protected int $current = 0;
     protected string $payload;
     protected bool $valid;
     protected int $engine_type;
@@ -35,6 +36,8 @@ class Packet
 
     public function __construct(string $packet = null)
     {
+        $this->order = [$this];
+        $this->current = 0;
         if (isset($packet)) {
             $this->packet = $packet;
             try {
@@ -51,16 +54,31 @@ class Packet
     protected function parse(): self
     {
         if (isset($this->valid)) return $this;
-        $packet = $this->packet;
-        $type = $packet[0] ?? '';
+        $payloads = explode(chr(30), $this->packet);
+        $payload = $payloads[0];
+        $type = $payload[0] ?? '';
+        $this->packet = $payload;
         if (is_numeric($type) && isset(self::types[$type])) {
-            $this->payload = substr($packet, 1);
+            $this->payload = substr($payload, 1);
             $this->engine_type = +$type;
             $this->valid = true;
         } else {
             $this->valid = false;
             throw new InvalidPacketException();
         }
+        for ($i = 1; $i < count($payloads); $i++) {
+            $packet = new static($payloads[$i]);
+            $this->append($packet);
+        }
+        return $this;
+    }
+
+    public function append(Packet $packet): Packet
+    {
+
+        $packet->order = &$this->order;
+        $packet->current = count($this->order);
+        $this->order[] = $packet;
         return $this;
     }
 
@@ -80,7 +98,11 @@ class Packet
             throw new InvalidPacketException();
         $object = new static();
         $object->engine_type = $type_id;
-        $object->payload = json_encode(count($data[0]) == 1 ? $data[0] : $data);
+        $count = count($data);
+        if ($count == 1)
+            $data = $data[0];
+        elseif ($count == 0) $data = '';
+        $object->payload = is_array($data) ? json_encode($data) : $data;
         return $object;
     }
 
@@ -102,23 +124,22 @@ class Packet
         return $this->id;
     }
 
-
     public function __toString()
     {
         return $this->encode();
     }
 
-    public function encode(): string
+    public function encode(bool $all = false): string
     {
-        foreach ($this->next as $packet) {
-            $this->payload .= chr(30) . $packet->encode();
-        }
+        if ($all)
+            foreach ($this->order as $packet) {
+                $this->payload .= chr(30) . $packet->encode();
+            }
         return "$this->engine_type$this->payload";
     }
 
-    public function append(Packet $packet): Packet
+    public function next(): ?self
     {
-        $this->next[] = $packet;
-        return $this;
+        return $this->order[$this->current + 1] ?? null;
     }
 }

@@ -27,15 +27,23 @@ class EngineIOMiddleware implements MiddlewareInterface
     {
         $server = swooleio();
         $uri = $request->getUri();
-        if (preg_match("/^$this->path/", $uri)) {
+        $method = $request->getMethod();
+        if($method == 'post') {
+            $payload = $request->getBody();
+            $packet = new SioPacket($payload);
+            return new Response('ok');
+        }
+        if (preg_match("#^$this->path#", $uri)) {
             $GET = $request->getQueryParams();
             if (isset($GET['sid'])) {
+                if ($server->isUpgraded($GET['sid']))
+                    return new Response(EioPacket::create('noop')->encode());
                 return new Response(SioPacket::create('connect')->encode());
             }
             $sid = base64_encode(substr(uuid(), 0, 19) . $server->getServerID());
             $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $server->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);
             $response = new Response($packet->encode());
-            swooleio()->newSid($sid, ['user' => $request->getAttribute('uid', 0), 'time' => time()]);
+            swooleio()->newSid($sid, $request->getAttribute('uid', 0));
             return $response->withHeader('sid', $sid);
         } else
             return $handler->handle($request);

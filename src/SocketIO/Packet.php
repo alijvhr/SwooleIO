@@ -134,7 +134,7 @@ class Packet extends EngineIOPacket
         return $this->encode();
     }
 
-    public function encode(): string
+    public function encode(bool $all = false): string
     {
         $this->engine_type = 4;
         $id = $this->id ?? '';
@@ -144,16 +144,14 @@ class Packet extends EngineIOPacket
             $this->payload = "$this->socket_type$namespace$id$data";
         else
             $this->payload = "$this->socket_type$data";
-        return parent::encode();
+        return parent::encode($all);
     }
 
     protected function parse(): self
     {
         parent::parse();
-        $packet = $this->payload;
-        $valid = true;
-        if ($this->engine_type === 4) {
-            preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $packet, $parts);
+        if ($this->valid && $this->engine_type === 4) {
+            preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $this->payload, $parts);
             $this->socket_type = +$parts[1];
             $this->binary_attachments = [];
             $this->binary_count = +substr($parts[2], 0, -1);
@@ -183,9 +181,9 @@ class Packet extends EngineIOPacket
                     $this->data = $payload;
                     break;
             }
+            $this->valid = $valid;
+            if (!$valid) throw new InvalidPacketException();
         }
-        $this->valid = $valid;
-        if (!$valid) throw new InvalidPacketException();
         return $this;
     }
 }
