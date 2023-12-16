@@ -2,10 +2,10 @@
 
 namespace SwooleIO;
 
-if (!function_exists('swooleio')) {
-    function swooleio(): Server
+if (!function_exists('io')) {
+    function io(): Server
     {
-        return Server::getInstance();
+        return Server::instance();
     }
 }
 

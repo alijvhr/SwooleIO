@@ -16,7 +16,7 @@ abstract class Singleton {
     /**
      * @return static
      */
-    public static function getInstance() {
+    public static function instance() {
         $cls = static::class;
         if (!isset(self::$instances[$cls])) {
             self::$instances[$cls] = new static();

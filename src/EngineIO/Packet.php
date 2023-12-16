@@ -89,13 +89,13 @@ class Packet
             $object->parse();
             return $object;
         }
+        return null;
     }
 
     public static function create(string $type, ...$data): self
     {
         $type_id = array_search($type, self::types);
-        if ($type_id === false)
-            throw new InvalidPacketException();
+        if ($type_id === false) $type_id = -1;
         $object = new static();
         $object->engine_type = $type_id;
         $count = count($data);

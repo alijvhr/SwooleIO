@@ -10,7 +10,7 @@ class BroadcastOperator extends Builder
 
     protected array $rooms;
 
-    protected Route $namespace;
+    protected Space $namespace;
     protected Adapter $adapter;
     protected array $excepts;
 
@@ -21,7 +21,7 @@ class BroadcastOperator extends Builder
         'compress' => false,
     ];
 
-    public function __construct(Route $namespace, Adapter $adapter)
+    public function __construct(Space $namespace, Adapter $adapter)
     {
         $this->namespace = $namespace;
         $this->adapter = $adapter;

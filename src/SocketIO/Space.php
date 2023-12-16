@@ -2,18 +2,20 @@
 
 namespace SwooleIO\SocketIO;
 
-class Route
-{
-    protected static array $routes = [];
-    public $name;
-    public $sockets = [];
-    public $rooms = [];
-    public $adapter;
-    private $server;
-    private $middlewares = [];
-    private $_ids = 0;
+use SwooleIO\EngineIO\Adapter;
 
-    final private function __construct($name, $server)
+class Space
+{
+
+    public string $name;
+    public Adapter $adapter;
+    private array $middlewares = [];
+    /**
+     * @var mixed
+     */
+    private $server;
+
+    final private function __construct(string $name, string $server)
     {
         $this->server = $server;
         $this->name = $name;
@@ -26,7 +28,7 @@ class Route
         $this->adapter = new $adapterClass($this);
     }
 
-    public static function Get(string $name, ?Server $server)
+    public static function get(string $name, ?Server $server)
     {
         if (!isset(self::$routes[$name]))
             self::$routes[$name] = new static($name, $server);
