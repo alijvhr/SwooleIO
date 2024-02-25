@@ -3,9 +3,9 @@
 namespace SwooleIO;
 
 if (!function_exists('io')) {
-    function io(): Server
+    function io(): IO
     {
-        return Server::instance();
+        return IO::instance();
     }
 }
 

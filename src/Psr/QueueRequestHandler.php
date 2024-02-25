@@ -19,9 +19,10 @@ class QueueRequestHandler implements RequestHandlerInterface
         $this->fallbackHandler = $fallbackHandler;
     }
 
-    public function add(MiddlewareInterface $middleware)
+    public function add(MiddlewareInterface $middleware):self
     {
         $this->middlewares[] = $middleware;
+        return $this;
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface

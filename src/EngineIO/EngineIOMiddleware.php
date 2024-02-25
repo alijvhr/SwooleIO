@@ -9,7 +9,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\SocketIO\Packet as SioPacket;
-use SwooleIO\Server;
+use SwooleIO\IO;
 use function SwooleIO\io;
 use function SwooleIO\uuid;
 
@@ -28,22 +28,20 @@ class EngineIOMiddleware implements MiddlewareInterface
         $server = io();
         $uri = $request->getUri();
         $method = $request->getMethod();
-        if($method == 'post') {
-            $payload = $request->getBody();
-            $packet = new SioPacket($payload);
-            return new Response('ok');
-        }
+        $GET = $request->getQueryParams();
         if (preg_match("#^$this->path#", $uri)) {
-            $GET = $request->getQueryParams();
             if (isset($GET['sid'])) {
-                if ($server->isUpgraded($GET['sid']))
-                    return new Response(EioPacket::create('noop')->encode());
-                return new Response(SioPacket::create('connect')->encode());
+                if ($method == 'post') {
+                    $payload = $request->getBody();
+                    MessageBroker::instance()->receive($payload, $GET['sid']);
+                    return new Response('ok');
+                }
+                return new Response(MessageBroker::instance()->flush($GET['sid']));
             }
             $sid = base64_encode(substr(uuid(), 0, 19) . $server->getServerID());
             $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $server->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);
             $response = new Response($packet->encode());
-            io()->newSid($sid, $request->getAttribute('uid', 0));
+            io()->setSession($sid, $request->getAttribute('uid', 0));
             return $response->withHeader('sid', $sid);
         } else
             return $handler->handle($request);

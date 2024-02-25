@@ -2,58 +2,64 @@
 
 namespace SwooleIO\SocketIO;
 
+use OpenSwoole\Table;
+use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Adapter;
+use SwooleIO\IO;
+use function SwooleIO\io;
 
-class Space
+class Route
 {
 
-    public string $name;
+    public string $path;
     public Adapter $adapter;
-    private array $middlewares = [];
-    /**
-     * @var mixed
-     */
-    private $server;
+    protected array $middlewares = [];
 
-    final private function __construct(string $name, string $server)
+    protected static array $routes = [];
+
+    /**
+     * @var callable[][]
+     */
+    protected array $listeners = [];
+
+    final private function __construct(string $name)
     {
-        $this->server = $server;
-        $this->name = $name;
+        $this->path = $name;
         $this->_initAdapter();
     }
 
     private function _initAdapter()
     {
-        $adapterClass = $this->server->adapter();
-        $this->adapter = new $adapterClass($this);
+        //TODO: return redis adapter
+        io();
     }
 
-    public static function get(string $name, ?Server $server)
+    public static function get(string $name): self
     {
         if (!isset(self::$routes[$name]))
-            self::$routes[$name] = new static($name, $server);
+            self::$routes[$name] = new static($name);
         return self::$routes[$name];
     }
 
-    public function use(Middleware $middleware): self
+    public function use(RequestHandlerInterface $middleware): self
     {
         $this->middlewares[] = $middleware;
         return $this;
     }
 
-    public function to($room)
+    public function to($room): BroadcastOperator
     {
-        return new BroadcastOperator($this)->to($room);
+        return (new BroadcastOperator($this))->to($room);
     }
 
-    public function in($room)
+    public function in($room): BroadcastOperator
     {
-        return new BroadcastOperator($this->adapter)->in($room);
+        return (new BroadcastOperator($this))->to($room);
     }
 
-    public function except($room)
+    public function except($room): BroadcastOperator
     {
-        return new BroadcastOperator($this->adapter)->except($room);
+        return (new BroadcastOperator($this))->except($room);
     }
 
     function _add($client, $auth, $fn)
@@ -61,20 +67,19 @@ class Space
         // ...
     }
 
-    public function write(...$args)
+    public function write(...$args): bool
     {
         return $this->send(...$args);
     }
 
-    public function send(...$args)
+    public function send(...$args): bool
     {
-        $this->emit("message", ...$args);
-        return $this;
+        return $this->emit("message", ...$args);
     }
 
-    public function emit($ev, ...$args)
+    public function emit($ev, ...$args): bool
     {
-        return new BroadcastOperator($this->adapter)->emit($ev, ...$args);
+        return (new BroadcastOperator($this))->emit($ev, ...$args);
     }
 
     public function serverSideEmit($ev, ...$args)
@@ -89,32 +94,39 @@ class Space
 
     public function fetchSockets()
     {
-        return new BroadcastOperator($this->adapter)->fetchSockets();
+        return (new BroadcastOperator($this))->fetchSockets();
     }
 
     public function compress($compress)
     {
-        return new BroadcastOperator($this->adapter)->compress($compress);
+        return (new BroadcastOperator($this))->compress($compress);
     }
 
     public function volatile()
     {
-        return new BroadcastOperator($this->adapter)->volatile();
+        return (new BroadcastOperator($this))->volatile();
     }
 
     public function local()
     {
-        return new BroadcastOperator($this->adapter)->local();
+        return (new BroadcastOperator($this))->local();
     }
 
     public function timeout($timeout)
     {
-        return new BroadcastOperator($this->adapter)->timeout($timeout);
+        return (new BroadcastOperator($this))->timeout($timeout);
     }
 
     public function disconnectSockets($close = false)
     {
-        return new BroadcastOperator($this->adapter)->disconnectSockets($close);
+        return (new BroadcastOperator($this))->disconnectSockets($close);
+    }
+
+    public function receive(string $session, string $event, array $params, int $id)
+    {
+        $listeners = $this->listeners[$event]??[];
+        foreach ($listeners as $listener)
+            $listener($session);
     }
 
     /**

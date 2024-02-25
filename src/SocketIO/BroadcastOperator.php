@@ -2,6 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
+use GuzzleHttp\Promise\Promise;
 use SwooleIO\EngineIO\Adapter;
 use SwooleIO\Lib\Builder;
 
@@ -10,7 +11,7 @@ class BroadcastOperator extends Builder
 
     protected array $rooms;
 
-    protected Space $namespace;
+    protected Route $namespace;
     protected Adapter $adapter;
     protected array $excepts;
 
@@ -21,10 +22,10 @@ class BroadcastOperator extends Builder
         'compress' => false,
     ];
 
-    public function __construct(Space $namespace, Adapter $adapter)
+    public function __construct(Route $namespace)
     {
         $this->namespace = $namespace;
-        $this->adapter = $adapter;
+        $this->adapter = Adapter::get();
     }
 
     public function in(string ...$rooms): self
@@ -65,15 +66,17 @@ class BroadcastOperator extends Builder
     }
 
 
-    public function emit(string $event, ...$params): boolean
+    public function emit(string $event, ...$params): self
+    {
+        $packet = Packet::create('event', ...$params);
+        return $this->broadcast($packet);
+    }
+
+
+    public function broadcast(Packet $packet): self
     {
 
-        $packet = Packet::create('event', ...$params);
-
-        $withAck = is_callable($params[count($params) - 1]);
-        if (!$withAck) return $this->broadcast($packet);
-        $callback = array_pop($params);
-        return $this->broadcast($packet, $callback);
+        return $this;
     }
 
     /**
@@ -97,7 +100,7 @@ class BroadcastOperator extends Builder
     /**
      * Gets a list of clients.
      *
-     * @deprecated this method will be removed in the next major release, please use {@link Server#serverSideEmit} or
+     * @deprecated this method will be removed in the next major release, please use {@link IO#serverSideEmit} or
      * {@link fetchSockets} instead.
      */
     public function allSockets()

@@ -8,7 +8,7 @@ namespace SwooleIO\EngineIO;
  * @method static static parse(string $packet)
  *
  */
-class Packet
+class Packet implements \Iterator
 {
 
     /**
@@ -28,7 +28,8 @@ class Packet
 
     /** @var Packet[] */
     protected array $order = [];
-    protected int $current = 0;
+    protected int $index = 0;
+    protected self $iterator;
     protected string $payload;
     protected bool $valid;
     protected int $engine_type;
@@ -37,7 +38,7 @@ class Packet
     public function __construct(string $packet = null)
     {
         $this->order = [$this];
-        $this->current = 0;
+        $this->index = 0;
         if (isset($packet)) {
             $this->packet = $packet;
             try {
@@ -77,7 +78,7 @@ class Packet
     {
 
         $packet->order = &$this->order;
-        $packet->current = count($this->order);
+        $packet->index = count($this->order);
         $this->order[] = $packet;
         return $this;
     }
@@ -138,8 +139,28 @@ class Packet
         return "$this->engine_type$this->payload";
     }
 
-    public function next(): ?self
+    public function next(): void
     {
-        return $this->order[$this->current + 1] ?? null;
+        $this->iterator = $this->order[$this->index + 1] ?? null;
+    }
+
+    public function current(): self
+    {
+        return $this->iterator;
+    }
+
+    public function key(): int
+    {
+        return $this->iterator->index;
+    }
+
+    public function valid(): bool
+    {
+        return isset($this->iterator);
+    }
+
+    public function rewind()
+    {
+        $this->iterator = $this->order[0];
     }
 }
