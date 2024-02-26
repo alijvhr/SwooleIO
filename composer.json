@@ -1,5 +1,5 @@
 {
-  "name": "alijvhr/swoole.io",
+  "name": "alijvhr/swooleio",
   "description": "This Package provides socket.io implementation in php and OpenSwoole",
   "keywords": [
     "swoole",
@@ -25,14 +25,14 @@
     "psr/http-server-middleware": "^1.0",
     "psr/http-server-handler": "^1.0",
     "psr/event-dispatcher": "^1.0",
-    "guzzlehttp/promises": "^2.0-stable"
+    "guzzlehttp/promises": "^2.0-stable",
+    "psr/log": "3.x-dev",
+    "toolkit/cli-utils": "^2.0-stable"
   },
   "require-dev": {
     "openswoole/ide-helper": ">=22.0.1",
     "openswoole/core": ">=22.1.4",
-    "phpunit/phpunit": "11.1.x-dev",
-    "phpstan/phpstan": "2.0.x-dev",
-    "vimeo/psalm": "6.x-dev"
+    "phpunit/phpunit": "^10.5.10"
   },
   "autoload": {
     "psr-4": {

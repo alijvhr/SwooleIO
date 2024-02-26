@@ -23,6 +23,8 @@ class Table implements \Iterator, \Countable
     ];
 
     const Castables = ['arr-2', 'arr-4', 'arr', 'json'];
+
+    const DefaultSize = 1000;
     public int $size;
     public int $memorySize;
     protected sTable $table;
@@ -37,7 +39,7 @@ class Table implements \Iterator, \Countable
      * @param int $size
      */
 
-    public function __construct(string $name, array $columns, int $size = 1000)
+    public function __construct(string $name, array $columns, int $size = self::DefaultSize)
     {
         $this->name = $name;
         $this->columns = $columns;
@@ -62,7 +64,7 @@ class Table implements \Iterator, \Countable
      * @return Table
      */
 
-    public static function create(string $name, array $columns, int $size = 1000): Table
+    public static function create(string $name, array $columns, int $size = self::DefaultSize): Table
     {
         return new self($name, $columns, $size);
     }

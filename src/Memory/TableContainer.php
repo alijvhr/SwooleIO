@@ -11,6 +11,17 @@ class TableContainer implements \Iterator, \Countable
     protected array $tables;
 
     /**
+     * @throws DuplicateTableNameException
+     */
+    public function __construct(array $structure = [])
+    {
+        foreach ($structure as $name => [$columns, $size]){
+            if(!isset($size)) $size = Table::DefaultSize;
+            $this->create($name, $columns, $size);
+        }
+    }
+
+    /**
      * @return Table[]
      */
     public function all(): array
@@ -42,7 +53,7 @@ class TableContainer implements \Iterator, \Countable
      * @return Table|null
      * @throws DuplicateTableNameException
      */
-    public function create(string $name, array $columns, int $size = 1000): ?Table
+    public function create(string $name, array $columns, int $size = Table::DefaultSize): ?Table
     {
         $table = new Table($name, $columns, $size);
         $this->add($table);

@@ -9,10 +9,10 @@ abstract class Process extends Singleton
 {
 
     protected Pool|Server $container;
-    protected int $workerID;
+    protected ?int $workerID;
     protected mixed $data;
 
-    final public static function start(Pool|Server $container, int $workerID, mixed $data = null): static
+    final public static function start(Pool|Server $container, mixed $data = null, int $workerID = null): static
     {
         $process = static::instance(false);
         $process->container = $container;

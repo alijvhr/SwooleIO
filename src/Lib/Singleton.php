@@ -7,7 +7,7 @@ use phpDocumentor\Reflection\Types\True_;
 abstract class Singleton
 {
 
-    protected static $instances = [];
+    protected static array $instances = [];
 
     private function __construct(bool $run)
     {

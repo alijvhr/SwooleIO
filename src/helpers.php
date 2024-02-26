@@ -15,7 +15,7 @@ if (!function_exists('uuid')) {
         try {
             $out = bin2hex(random_bytes(18));
         } catch (\Exception $e) {
-            $out = 0;
+            $out = '';
             for ($i = 0; $i < 16; $i++) $out .= chr(rand(12, 240));
             $out = dechex($out);
         }
@@ -34,5 +34,16 @@ if (!function_exists('uuid')) {
         }
 
         return $out;
+    }
+}
+
+if (!function_exists('interpolate')) {
+
+    function interpolate(string $message, array $context = []): string
+    {
+        $replace = [];
+        foreach ($context as $key => $val)
+            $replace["\{$key}"] = $val;
+        return strtr($message, $replace);
     }
 }

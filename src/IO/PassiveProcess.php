@@ -36,13 +36,13 @@ class PassiveProcess
         return $passiveProcess;
     }
 
-    protected function start(Server|Pool $container, int $workerID): void
+    public function start(Server|Pool $container, int $workerID = null): void
     {
         if (is_subclass_of($this->class, Process::class))
-            $this->process = $this->class::start($container, $workerID, $this->data);
+            $this->process = $this->class::start($container, $this->data, $workerID);
     }
 
-    protected function stop(Server|Pool $container, int $workerID): void
+    public function stop(Server|Pool $container, int $workerID = null): void
     {
         if (isset($this->process))
             $this->process->exit();

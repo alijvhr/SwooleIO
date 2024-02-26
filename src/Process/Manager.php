@@ -3,18 +3,16 @@
 namespace SwooleIO\Process;
 
 use OpenSwoole\Constant;
+use Psr\Log\LogLevel;
+use SwooleIO\IO;
 use SwooleIO\Lib\Process;
 
 class Manager extends Process
 {
 
-    function init(): void
+    public function init(): void
     {
-        foreach ($this->container->listeners as $listener) {
-            if (in_array($listener[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM]))
-                chmod($listener[0], 0777);
-        }
-        echo "manager $this->workerID started";
+        IO::instance()->info("manager started");
     }
 
     public function exit()

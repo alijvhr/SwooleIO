@@ -2,39 +2,49 @@
 
 namespace SwooleIO;
 
+use OpenSwoole\Constant;
 use OpenSwoole\Server as OpenSwooleTCPServer;
+use OpenSwoole\Util;
 use OpenSwoole\Websocket\Server as OpenSwooleServer;
 use Psr\EventDispatcher\StoppableEventInterface;
 use Psr\Http\Server\MiddlewareInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LoggerInterface;
+use Psr\Log\LoggerTrait;
+use Psr\Log\LogLevel;
 use SwooleIO\EngineIO\EngineIOMiddleware;
+use SwooleIO\IO\EventHandler;
 use SwooleIO\IO\Http;
 use SwooleIO\IO\PassiveProcess;
+use SwooleIO\IO\Task;
 use SwooleIO\Lib\Singleton;
 use SwooleIO\Memory\DuplicateTableNameException;
 use SwooleIO\Memory\Table;
 use SwooleIO\Memory\TableContainer;
-use SwooleIO\Psr\Event\EventDispatcher;
 use SwooleIO\Psr\Event\ListenerProvider;
 use SwooleIO\Psr\Middleware\NotFoundHandler;
 use SwooleIO\Psr\QueueRequestHandler;
 use SwooleIO\IO\WebSocket;
 use SwooleIO\SocketIO\Route;
+use Toolkit\Cli\Util\Clog;
 
-class IO extends Singleton
+class IO extends Singleton implements LoggerAwareInterface, LoggerInterface
 {
+
+    use LoggerAwareTrait;
+    use LoggerTrait;
 
     protected static string $serverID;
 
     protected OpenSwooleServer $server;
-
-    protected WebSocket $wsServer;
     protected TableContainer $tables;
+    protected EventHandler $evHandler;
+    protected QueueRequestHandler $reqHandler;
     protected array $transports = ['polling', 'websocket'];
+
     protected string $path;
-    protected ListenerProvider $listener;
-    protected QueueRequestHandler $handler;
     protected array $listeners;
-    private EventDispatcher $dispatcher;
 
     public function getServerID(): string
     {
@@ -47,32 +57,28 @@ class IO extends Singleton
     public function init(): void
     {
         self::$serverID = substr(uuid(), -17);
-        $this->handler = new QueueRequestHandler(new NotFoundHandler());
-        $this->listener = new ListenerProvider();
-        $this->dispatcher = new EventDispatcher($this->listener);
-        try {
-            $this->tables->create('fd', ['sid' => 'str', 'room' => 'list'], 5e4);
-            $this->tables->create('sid', ['fd' => 'arr', 'room' => 'list'], 2e4);
-            $this->tables->create('room', ['fd' => 'arr', 'sid' => 'list'], 2e3);
-        } catch (DuplicateTableNameException $e) {
-            // TODO: add to log
-            throw $e;
-        }
+        $this->reqHandler = new QueueRequestHandler(new NotFoundHandler());
+        $this->evHandler = new EventHandler();
+        $this->tables = new TableContainer([
+            'fd' => [['sid' => 'str', 'room' => 'list'], 5e4],
+            'sid' => [['fd' => 'arr', 'room' => 'list'], 2e4],
+            'room' => [['fd' => 'arr', 'sid' => 'list'], 2e3]
+        ]);
     }
 
     public function dispatch(StoppableEventInterface $event): StoppableEventInterface
     {
-        return $this->dispatcher->dispatch($event);
+        return $this->evHandler->dispatch($event);
+    }
+
+    public function on(string $event, callable $listener): ListenerProvider
+    {
+        return $this->evHandler->on($event, $listener);
     }
 
     public function getTransports(): array
     {
         return $this->transports;
-    }
-
-    public function setTransports(array $transports): void
-    {
-        $this->transports = $transports;
     }
 
     public function reportWorker(): void
@@ -88,7 +94,7 @@ class IO extends Singleton
 
     public function middleware(MiddlewareInterface $middleware): static
     {
-        $this->handler->add(new EngineIOMiddleware($this->path));
+        $this->reqHandler->add(new EngineIOMiddleware($this->path));
         return $this;
     }
 
@@ -106,18 +112,16 @@ class IO extends Singleton
     {
         $this->path = $path;
         $this->server = $server = new OpenSwooleServer($host, $port, OpenSwooleTCPServer::POOL_MODE);
+        $server->set(['task_worker_num' => Util::getCPUNum(), 'task_enable_coroutine' => true]);
         foreach ($this->listeners as $listener)
             $this->server->addlistener(...$listener);
+        Http::register($server)->setHandler($this->reqHandler->add(new EngineIOMiddleware($this->path)));
         WebSocket::register($server);
-        Http::register($server)->setHandler($this->handler->add(new EngineIOMiddleware($this->path)));
+        Task::register($server);
         PassiveProcess::hook($server, 'Manager', 'SwooleIO\Process\Manager', $this);
         PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker', $this);
+//        $this->server->defer([$this, 'afterStart']);
         return $this->server->start();
-    }
-
-    public function on(string $event, callable $listener): ListenerProvider
-    {
-        return $this->listener->addListener($event, $listener);
     }
 
     public function listen(string $host, int $port, int $sockType): self
@@ -131,4 +135,16 @@ class IO extends Singleton
         return Route::get($namespace);
     }
 
+    public function log($level, string|\Stringable $message, array $context = []): void
+    {
+        Clog::log($level, interpolate($message, $context));
+    }
+
+    protected function afterStart(): void
+    {
+        foreach ($this->listeners as $listener) {
+            if (in_array($listener[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM]))
+                chmod($listener[0], 0777);
+        }
+    }
 }

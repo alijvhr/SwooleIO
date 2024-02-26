@@ -2,14 +2,16 @@
 
 namespace SwooleIO\Process;
 
+use SwooleIO\IO;
 use SwooleIO\Lib\Process;
 
 class Worker extends Process
 {
 
-    function init(): void
+    public function init(): void
     {
-        echo "worker $this->workerID started";
+
+        IO::instance()->info(($this->container->taskworker?"task-worker":"worker")." $this->workerID started");
     }
 
     public function exit()
