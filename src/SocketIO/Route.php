@@ -122,9 +122,9 @@ class Route
         return (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    public function receive(string $session, string $event, array $params, int $id)
+    public function receive(string $session, Packet $packet): void
     {
-        $listeners = $this->listeners[$event]??[];
+        $listeners = $this->listeners[$packet->getEvent()]??[];
         foreach ($listeners as $listener)
             $listener($session);
     }

@@ -2,12 +2,6 @@
 
 namespace SwooleIO\EngineIO;
 
-/**
- * Class Packet
- *
- * @method static static parse(string $packet)
- *
- */
 class Packet implements \Iterator
 {
 
@@ -82,15 +76,15 @@ class Packet implements \Iterator
         $this->order[] = $packet;
         return $this;
     }
-
-    public static function __callStatic($name, $args)
+    public static function from(string $packet): ?static
     {
-        if ($name === 'parse' && count($args) == 1) {
-            $object = new static($args[0]);
+        try {
+            $object = new static($packet);
             $object->parse();
             return $object;
+        }catch (InvalidPacketException $e) {
+            return null;
         }
-        return null;
     }
 
     public static function create(string $type, ...$data): self
@@ -107,7 +101,7 @@ class Packet implements \Iterator
         return $object;
     }
 
-    public function getEngineType(bool $as_int = false)
+    public function getEngineType(bool $as_int = false): int|string
     {
         return $as_int ? $this->engine_type : self::types[$this->engine_type];
     }
@@ -125,7 +119,7 @@ class Packet implements \Iterator
         return $this->id;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->encode();
     }
@@ -159,7 +153,7 @@ class Packet implements \Iterator
         return isset($this->iterator);
     }
 
-    public function rewind()
+    public function rewind(): void
     {
         $this->iterator = $this->order[0];
     }

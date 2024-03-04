@@ -1,0 +1,19 @@
+version: '3'
+services:
+  website:
+    image: alijvhr/swoolio:test
+    build:
+      context: $SWOOLEIO_MAIN_PATH
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+    working_dir: /app
+    depends_on:
+      - redis
+    restart: always
+  redis:
+    image: redis:latest
+    environment:
+      - REDIS_PASSWORD=$REDIS_PASSWORD
+    restart: always

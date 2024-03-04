@@ -11,7 +11,7 @@ class Worker extends Process
     public function init(): void
     {
 
-        IO::instance()->info(($this->container->taskworker?"task-worker":"worker")." $this->workerID started");
+        IO::instance()->log()->info(($this->container->taskworker ? "task-worker" : "worker") . " $this->workerID started");
     }
 
     public function exit()

@@ -1,16 +1,15 @@
 <?php
 
-namespace SwooleIO\IO;
+namespace SwooleIO\Hooks;
 
+use OpenSwoole\Core\Psr\Response as ServerResponse;
 use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
-use SwooleIO\IO;
-use SwooleIO\Lib\EventHook;
-use OpenSwoole\Core\Psr\Response as ServerResponse;
 use OpenSwoole\Http\Response;
+use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\QueueRequestHandler;
 
-class Http extends EventHook
+class Http extends Hook
 {
     protected QueueRequestHandler $handler;
 

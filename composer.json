@@ -16,7 +16,7 @@
   "authors": [
     {
       "name": "alijvhr",
-      "email": "email@example.com"
+      "email": "me@alijvhr.com"
     }
   ],
   "require": {
@@ -27,13 +27,19 @@
     "psr/event-dispatcher": "^1.0",
     "guzzlehttp/promises": "^2.0-stable",
     "psr/log": "3.x-dev",
-    "toolkit/cli-utils": "^2.0-stable"
+    "toolkit/cli-utils": "^2.0-stable",
+    "openswoole/core": "*"
   },
   "require-dev": {
     "openswoole/ide-helper": ">=22.0.1",
-    "openswoole/core": ">=22.1.4",
     "phpunit/phpunit": "^10.5.10"
   },
+  "repositories": [
+    {
+      "type": "path",
+      "url": "./openswoole/core"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "SwooleIO\\": "src"

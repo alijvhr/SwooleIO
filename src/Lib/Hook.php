@@ -2,7 +2,7 @@
 
 namespace SwooleIO\Lib;
 
-abstract class EventHook
+abstract class Hook
 {
     public function __construct(protected object $target, bool $registerNow = false)
     {

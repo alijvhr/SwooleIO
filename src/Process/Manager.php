@@ -12,7 +12,7 @@ class Manager extends Process
 
     public function init(): void
     {
-        IO::instance()->info("manager started");
+        IO::instance()->log()->info("manager started");
     }
 
     public function exit()

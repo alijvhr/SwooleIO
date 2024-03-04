@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\IO;
+namespace SwooleIO\Hooks;
 
 use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
@@ -8,10 +8,10 @@ use OpenSwoole\WebSocket\Server as OpenSwooleServer;
 use SwooleIO\EngineIO\InvalidPacketException;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\IO;
-use SwooleIO\Lib\EventHook;
+use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
 
-class WebSocket extends EventHook
+class WebSocket extends Hook
 {
 
     protected IO $io;

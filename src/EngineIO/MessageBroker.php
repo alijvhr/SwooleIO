@@ -17,7 +17,7 @@ class MessageBroker extends Singleton
 
     }
 
-    public function receive(string $payload, string $session)
+    public function receive(string $payload, string $session): void
     {
         $packets = new SioPacket($payload);
         /**

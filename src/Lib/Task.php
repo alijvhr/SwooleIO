@@ -7,6 +7,6 @@ use OpenSwoole\Server;
 abstract class Task
 {
 
-    abstract public function start(Server $server): string;
+    abstract public function do(Server $server): string;
 
 }
