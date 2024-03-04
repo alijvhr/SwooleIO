@@ -14,7 +14,7 @@ use function SwooleIO\uuid;
 
 class SocketIOMiddleware implements MiddlewareInterface
 {
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): \Psr\Http\Message\MessageInterface
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $io = io();
         $uri = $request->getUri();
