@@ -33,7 +33,6 @@ class WebSocket extends Hook
 
     public function onOpen(Server $server, Request $request): void
     {
-        $io = $this->io;
         /** @var ServerRequest $serverRequest */
         $serverRequest = ServerRequest::from($request);
         $sid = $serverRequest->getQueryParam('sid', '');
@@ -55,16 +54,13 @@ class WebSocket extends Hook
             case 2:
                 $socket->emit(EioPacket::create('pong', $packet->getPayload()));
                 break;
-            case 5:
-//                $server->push($frame->fd, SocketIO\Packet::create('connect')->encode());
-//                $session = $this->FDs->get($frame->fd);
-                break;
             case 4:
-                $io->of($packet->getNamespace())->receive($socket, $packet);
+                $io->receive($socket, $packet);
         }
     }
 
-    public function onClose(Server $server, $fd): void
+    public function onClose(Server $server, int $fd): void
     {
+        Socket::clean($fd);
     }
 }

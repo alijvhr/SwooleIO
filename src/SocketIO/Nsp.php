@@ -135,18 +135,19 @@ class Nsp
 
     private function dispatch(Socket $socket, Packet $packet): void
     {
+        $io = io();
+        switch ($packet->getSocketType(true)) {
+            case 0:
+                $socket->emit(Packet::create('connect', ['sid' => $io->generateSid()]));
+                break;
+            case 2:
+                $io->of($packet->getNamespace())->receive($socket, $packet);
+        }
         $listeners = $this->listeners[$packet->getEvent()] ?? [];
         foreach ($listeners as $listener)
             $listener($socket, $packet);
     }
 
-    /**
-     * Executes the middleware for an incoming client.
-     *
-     * @param socket - the socket that will get added
-     * @param fn - last fn call in the middleware
-     * @private
-     */
     private function run($socket, $fn)
     {
         $fns = $this->middlewares;

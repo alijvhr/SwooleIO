@@ -8,6 +8,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\IO\Socket;
 use function SwooleIO\io;
 use function SwooleIO\uuid;
 
@@ -21,15 +22,16 @@ class SocketIOMiddleware implements MiddlewareInterface
         $GET = $request->getQueryParams();
         $path = $io->path();
         if (str_starts_with($uri, $path)) {
-            $sid = $GET['sid'] ?? base64_encode(substr(uuid(), 0, 19) . $io->getServerID());
-            $socket = $io->socket($sid, $request);
+            $sid = $GET['sid'] ?? $io->generateSid();
+            $socket = Socket::fetch($sid, $request);
             if ($socket->sid()) {
                 if ($method == 'POST') {
                     $packet = Packet::from($request->getBody());
-                    $io->of($packet->getNamespace())->receive($socket, $packet);
+                    $io->receive($socket, $packet);
                     return new Response('ok');
                 }
-                return new Response($socket->flush()?: EioPacket::create('noop')->encode());
+                $buffer = $socket->flush();
+                return new Response($socket->isConnected() || !$buffer ? EioPacket::create('noop')->encode() : $buffer);
             }
             $socket->sid($sid);
             $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $io->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);

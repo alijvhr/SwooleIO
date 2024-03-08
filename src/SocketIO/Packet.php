@@ -73,9 +73,10 @@ class Packet extends EngineIOPacket
     /**
      * Get socket packet type of raw payload.
      *
-     * @return string
+     * @param bool $as_int
+     * @return int|string|null
      */
-    public function getSocketType(bool $as_int)
+    public function getSocketType(bool $as_int): int|string|null
     {
         if ($this->engine_type == 4)
             return $as_int ? $this->socket_type : self::types[$this->socket_type];

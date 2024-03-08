@@ -6,11 +6,11 @@ use OpenSwoole\Constant;
 use OpenSwoole\Server;
 use OpenSwoole\Util;
 use OpenSwoole\WebSocket\Server as WebsocketServer;
-use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
+use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
@@ -24,6 +24,7 @@ use SwooleIO\Memory\TableContainer;
 use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
 use SwooleIO\SocketIO\Nsp;
+use SwooleIO\SocketIO\Packet;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -39,10 +40,6 @@ class IO extends Singleton implements LoggerAwareInterface
 
     protected string $path;
     protected array $endpoints = [];
-
-    /** @var Socket[] */
-    protected array $sockets;
-    protected array $fd;
     protected StackRequestHandler $reqHandler;
 
     public function getServerID(): string
@@ -80,17 +77,6 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         $this->reqHandler->add($middleware);
         return $this;
-    }
-
-    public function add(Socket $socket): Socket
-    {
-        $this->table('pid')->set($socket->pid(), ['fd' => $socket->fd(), 'sid' => $socket->sid(), 'room' => [], 'buffer' => '']);
-        if ($socket->sid())
-            $this->table('sid')->set($socket->sid(), ['pid' => $socket->pid()]);
-        if ($socket->fd())
-            if ($socket->fd())
-                $this->table('fd')->set($socket->fd(), ['pid' => $socket->pid()]);
-        return $this->sockets[$socket->pid()] = $socket;
     }
 
     public function table(string $name): ?Table
@@ -146,26 +132,15 @@ class IO extends Singleton implements LoggerAwareInterface
         return Nsp::get($namespace);
     }
 
-    public function socket(string $pid, ServerRequestInterface $request = null): Socket
+    public function receive(Socket $socket, Packet $packet): void
     {
-        return $this->recover($pid, $request) ?? $this->add(new Socket($request, $pid));
-    }
-
-    public function recover(string $pid, ServerRequestInterface $request = null): ?Socket
-    {
-        $socket = null;
-        if (isset($this->sockets[$pid]))
-            $socket = $this->sockets[$pid];
-        else {
-            $session = $this->table('pid')->get($pid);
-            if (isset($session)) {
-                $socket = new Socket($request, $pid);
-                $socket->sid($session['sid']);
-                $socket->fd($session['fd']);
-            }
+        switch ($packet->getEngineType(true)) {
+            case 2:
+                $socket->emit(EioPacket::create('pong', $packet->getPayload()));
+                break;
+            case 4:
+                $this->of($packet->getNamespace())->receive($socket, $packet);
         }
-        if (isset($socket, $request)) $socket->request = $request;
-        return $socket;
     }
 
     public function close(int $fd): bool
@@ -186,5 +161,10 @@ class IO extends Singleton implements LoggerAwareInterface
     public function log(): ?LoggerInterface
     {
         return $this->logger;
+    }
+
+    public function generateSid(): string
+    {
+        return base64_encode(substr(uuid(), 0, 19) . $this->getServerID());
     }
 }
