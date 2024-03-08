@@ -7,7 +7,7 @@ use SwooleIO\Lib\Singleton;
 use SwooleIO\Psr\Event\Event;
 use SwooleIO\Psr\Event\EventDispatcher;
 use SwooleIO\SocketIO\Packet as SioPacket;
-use SwooleIO\SocketIO\Route;
+use SwooleIO\SocketIO\Nsp;
 
 class MessageBroker extends Singleton
 {
@@ -24,7 +24,7 @@ class MessageBroker extends Singleton
          * @var SioPacket $packet
          */
         foreach ($packets as $packet)
-            Route::get($packet->getNamespace())->receive($session, $packet->getEvent(), $packet->getParams(), $packet->getId());
+            Nsp::get($packet->getNamespace())->receive($session, $packet->getEvent(), $packet->getParams(), $packet->getId());
     }
 
     public function send(Packet $packet, string $session)

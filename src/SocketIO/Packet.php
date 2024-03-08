@@ -35,7 +35,7 @@ class Packet extends EngineIOPacket
 
     protected string $packet = '';
     protected array $params;
-    protected $data;
+    protected mixed $data;
     protected string $event;
     protected int $socket_type;
 
@@ -114,22 +114,22 @@ class Packet extends EngineIOPacket
     /**
      * @return mixed
      */
-    public function getData()
+    public function getData(): mixed
     {
-        return $this->data;
+        return $this->data?? null;
     }
 
     public function getParams(): array
     {
-        return $this->params;
+        return $this->params?? [];
     }
 
     public function getEvent(): string
     {
-        return $this->event;
+        return $this->event?? '';
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->encode();
     }
@@ -154,9 +154,9 @@ class Packet extends EngineIOPacket
             preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $this->payload, $parts);
             $this->socket_type = +$parts[1];
             $this->binary_attachments = [];
-            $this->binary_count = +substr($parts[2], 0, -1);
+            $this->binary_count = +(substr($parts[2], 0, -1) ?: 0);
             $this->namespace = substr($parts[3], 0, -1);
-            $this->id = $parts[4]?: 0;
+            $this->id = $parts[4] ?: 0;
             $payload = json_decode($parts[5], true);
             $valid = false;
             switch ($this->socket_type) {

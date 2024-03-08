@@ -2,21 +2,18 @@
 
 namespace SwooleIO\SocketIO;
 
-use OpenSwoole\Table;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Adapter;
-use SwooleIO\IO;
+use SwooleIO\IO\Socket;
 use function SwooleIO\io;
 
-class Route
+class Nsp
 {
 
+    protected static array $routes = [];
     public string $path;
     public Adapter $adapter;
     protected array $middlewares = [];
-
-    protected static array $routes = [];
-
     /**
      * @var callable[][]
      */
@@ -49,19 +46,19 @@ class Route
 
     public function on(string $event, callable $callback): self
     {
-        if(isset($this->listeners[$event]))
+        if (isset($this->listeners[$event]))
             $this->listeners[$event][] = $callback;
         else
             $this->listeners[$event] = [$callback];
         return $this;
     }
 
-    public function to($room): BroadcastOperator
+    public function in($room): BroadcastOperator
     {
         return (new BroadcastOperator($this))->to($room);
     }
 
-    public function in($room): BroadcastOperator
+    public function to($room): BroadcastOperator
     {
         return (new BroadcastOperator($this))->to($room);
     }
@@ -131,9 +128,14 @@ class Route
         (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    public function receive(IO\Socket $socket, Packet $packet): void
+    public function receive(Socket $socket, Packet $packet): void
     {
-        $listeners = $this->listeners[$packet->getEvent()]??[];
+        io()->server()->defer(fn() => $this->dispatch($socket, $packet));
+    }
+
+    private function dispatch(Socket $socket, Packet $packet): void
+    {
+        $listeners = $this->listeners[$packet->getEvent()] ?? [];
         foreach ($listeners as $listener)
             $listener($socket, $packet);
     }

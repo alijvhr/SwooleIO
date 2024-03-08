@@ -6,7 +6,7 @@ use OpenSwoole\Constant;
 use OpenSwoole\Server;
 use OpenSwoole\Util;
 use OpenSwoole\WebSocket\Server as WebsocketServer;
-use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -23,7 +23,7 @@ use SwooleIO\Memory\Table;
 use SwooleIO\Memory\TableContainer;
 use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
-use SwooleIO\SocketIO\Route;
+use SwooleIO\SocketIO\Nsp;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -88,8 +88,8 @@ class IO extends Singleton implements LoggerAwareInterface
         if ($socket->sid())
             $this->table('sid')->set($socket->sid(), ['pid' => $socket->pid()]);
         if ($socket->fd())
-        if ($socket->fd())
-            $this->table('fd')->set($socket->fd(), ['pid' => $socket->pid()]);
+            if ($socket->fd())
+                $this->table('fd')->set($socket->fd(), ['pid' => $socket->pid()]);
         return $this->sockets[$socket->pid()] = $socket;
     }
 
@@ -141,36 +141,36 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this;
     }
 
-    public function of(string $namespace): Route
+    public function of(string $namespace): Nsp
     {
-        return Route::get($namespace);
+        return Nsp::get($namespace);
     }
 
-    public function socket(string $pid, RequestInterface $request): Socket
+    public function socket(string $pid, ServerRequestInterface $request = null): Socket
     {
         return $this->recover($pid, $request) ?? $this->add(new Socket($request, $pid));
     }
 
-    public function recover(string $pid, RequestInterface $request): ?Socket
+    public function recover(string $pid, ServerRequestInterface $request = null): ?Socket
     {
-        if (isset($this->sockets[$pid])) {
+        $socket = null;
+        if (isset($this->sockets[$pid]))
             $socket = $this->sockets[$pid];
-            $socket->request = $request;
-            return $socket;
+        else {
+            $session = $this->table('pid')->get($pid);
+            if (isset($session)) {
+                $socket = new Socket($request, $pid);
+                $socket->sid($session['sid']);
+                $socket->fd($session['fd']);
+            }
         }
-        $session = $this->table('pid')->get($pid);
-        if (isset($session)) {
-            $socket = new Socket($request, $pid);
-            $socket->sid($session['sid']);
-            $socket->fd($session['fd']);
-        }
-        return $socket ?? null;
+        if (isset($socket, $request)) $socket->request = $request;
+        return $socket;
     }
 
-    public function close(int $fd): ?Socket
+    public function close(int $fd): bool
     {
-
-        return $socket ?? null;
+        return $this->server->close($fd);
     }
 
     public function onStart(): void
