@@ -6,22 +6,22 @@ use OpenSwoole\Core\Psr\Response as ServerResponse;
 use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
+use OpenSwoole\Server;
 use SwooleIO\Lib\Hook;
-use SwooleIO\Psr\QueueRequestHandler;
+use SwooleIO\Psr\Handler\NotFoundHandler;
+use SwooleIO\Psr\Handler\QueueRequestHandler;
+use SwooleIO\Psr\Handler\StackRequestHandler;
+use SwooleIO\SocketIO\SocketIOMiddleware;
 
 class Http extends Hook
 {
-    protected QueueRequestHandler $handler;
+    public StackRequestHandler $handler;
 
-    public function __construct(object $target, bool $registerNow = false)
+    public function __construct(Server $target, bool $registerNow = false)
     {
         parent::__construct($target, $registerNow);
-    }
-
-    public function setHandler(QueueRequestHandler $handler): self
-    {
-        $this->handler = $handler;
-        return $this;
+        $this->handler = new QueueRequestHandler(new NotFoundHandler());
+        $this->handler->add(new SocketIOMiddleware());
     }
 
     public function onRequest(Request $request, Response $response): void
@@ -29,5 +29,10 @@ class Http extends Hook
         $serverRequest = ServerRequest::from($request);
         $serverResponse = $this->handler->handle($serverRequest);
         ServerResponse::emit($response, $serverResponse);
+    }
+
+    public function onClose(Server $server, int $fd): void
+    {
+
     }
 }

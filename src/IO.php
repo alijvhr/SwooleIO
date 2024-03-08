@@ -3,9 +3,10 @@
 namespace SwooleIO;
 
 use OpenSwoole\Constant;
-use OpenSwoole\Server as OpenSwooleTCPServer;
+use OpenSwoole\Server;
 use OpenSwoole\Util;
-use OpenSwoole\Websocket\Server as OpenSwooleServer;
+use OpenSwoole\WebSocket\Server as WebsocketServer;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -15,15 +16,14 @@ use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
 use SwooleIO\IO\EventHandler;
 use SwooleIO\IO\PassiveProcess;
+use SwooleIO\IO\Socket;
 use SwooleIO\Lib\Singleton;
 use SwooleIO\Memory\DuplicateTableNameException;
 use SwooleIO\Memory\Table;
 use SwooleIO\Memory\TableContainer;
+use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
-use SwooleIO\Psr\Middleware\NotFoundHandler;
-use SwooleIO\Psr\QueueRequestHandler;
 use SwooleIO\SocketIO\Route;
-use SwooleIO\SocketIO\SocketIOMiddleware;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -32,14 +32,18 @@ class IO extends Singleton implements LoggerAwareInterface
 
     protected static string $serverID;
 
-    protected OpenSwooleServer $server;
+    protected WebsocketServer $server;
     protected TableContainer $tables;
     protected EventHandler $evHandler;
-    protected QueueRequestHandler $reqHandler;
     protected array $transports = ['polling', 'websocket'];
 
     protected string $path;
-    protected array $endpoints;
+    protected array $endpoints = [];
+
+    /** @var Socket[] */
+    protected array $sockets;
+    protected array $fd;
+    protected StackRequestHandler $reqHandler;
 
     public function getServerID(): string
     {
@@ -53,13 +57,12 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         self::$serverID = substr(uuid(), -17);
         $this->logger = new FallbackLogger();
-        $this->reqHandler = new QueueRequestHandler(new NotFoundHandler());
-        $this->reqHandler->add(new SocketIOMiddleware());
         $this->evHandler = new EventHandler();
         $this->tables = new TableContainer([
-            'fd' => [['sid' => 'str', 'room' => 'list'], 5e4],
-            'sid' => [['fd' => 'arr', 'room' => 'list'], 2e4],
-            'room' => [['fd' => 'arr', 'sid' => 'list'], 2e3]
+            'fd' => [['pid' => 'str'], 1e5],
+            'sid' => [['pid' => 'str', 'fd' => 'int'], 1e5],
+            'pid' => [['fd' => 'int', 'sid' => 'str', 'room' => 'list', 'buffer' => 'text'], 1e5],
+            'room' => [['pid' => 'list'], 1e4],
         ]);
     }
 
@@ -73,10 +76,21 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->transports;
     }
 
-    public function reportWorker(): void
+    public function middleware(MiddlewareInterface $middleware): static
     {
-        $wid = $this->server->getWorkerId();
-        echo "worker: $wid\n";
+        $this->reqHandler->add($middleware);
+        return $this;
+    }
+
+    public function add(Socket $socket): Socket
+    {
+        $this->table('pid')->set($socket->pid(), ['fd' => $socket->fd(), 'sid' => $socket->sid(), 'room' => [], 'buffer' => '']);
+        if ($socket->sid())
+            $this->table('sid')->set($socket->sid(), ['pid' => $socket->pid()]);
+        if ($socket->fd())
+        if ($socket->fd())
+            $this->table('fd')->set($socket->fd(), ['pid' => $socket->pid()]);
+        return $this->sockets[$socket->pid()] = $socket;
     }
 
     public function table(string $name): ?Table
@@ -84,13 +98,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables->get($name);
     }
 
-    public function middleware(MiddlewareInterface $middleware): static
-    {
-        $this->reqHandler->add($middleware);
-        return $this;
-    }
-
-    public function server(): OpenSwooleServer
+    public function server(): WebsocketServer
     {
         return $this->server;
     }
@@ -103,23 +111,24 @@ class IO extends Singleton implements LoggerAwareInterface
     public function start(string $path = '/socket.io'): bool
     {
         $this->path = $path;
-        [$host, $port, $sockType] = array_pop($this->endpoints)?? ['0.0.0.0', 80, OpenSwooleTCPServer::POOL_MODE];
-        $this->server = $server = new OpenSwooleServer($host, $port, $sockType);
-        $server->set(['task_worker_num' => Util::getCPUNum(), 'task_enable_coroutine' => true, 'enable_coroutine' => true, 'send_yield' => true]);
+        [$host, $port, $sockType] = reset($this->endpoints) ?? $this->endpoints[] = ['0.0.0.0', 80, Constant::SOCK_TCP];
+        $this->server = $server = new WebsocketServer($host, $port, Server::POOL_MODE, $sockType);
+        $server->set(['task_worker_num' => Util::getCPUNum(), 'task_enable_coroutine' => true, 'enable_coroutine' => true, 'send_yield' => true, 'websocket_compression' => true]);
         foreach ($this->endpoints as $endpoint)
             $this->server->addlistener(...$endpoint);
         $this->defaultHooks($server);
-        $this->server->after(50, [$this, 'afterStart']);
+        $this->server->after(50, [$this, 'onStart']);
         return $this->server->start();
     }
 
     /**
-     * @param OpenSwooleServer $server
+     * @param WebsocketServer $server
      * @return void
      */
-    protected function defaultHooks(OpenSwooleServer $server): void
+    protected function defaultHooks(WebsocketServer $server): void
     {
-        Http::register($server)->setHandler($this->reqHandler);
+        $server->on('Start', [$this, 'onStart']);
+        $this->reqHandler = Http::register($server)->handler;
         WebSocket::register($server);
         Task::register($server);
         PassiveProcess::hook($server, 'Manager', 'SwooleIO\Process\Manager', $this);
@@ -137,16 +146,45 @@ class IO extends Singleton implements LoggerAwareInterface
         return Route::get($namespace);
     }
 
+    public function socket(string $pid, RequestInterface $request): Socket
+    {
+        return $this->recover($pid, $request) ?? $this->add(new Socket($request, $pid));
+    }
+
+    public function recover(string $pid, RequestInterface $request): ?Socket
+    {
+        if (isset($this->sockets[$pid])) {
+            $socket = $this->sockets[$pid];
+            $socket->request = $request;
+            return $socket;
+        }
+        $session = $this->table('pid')->get($pid);
+        if (isset($session)) {
+            $socket = new Socket($request, $pid);
+            $socket->sid($session['sid']);
+            $socket->fd($session['fd']);
+        }
+        return $socket ?? null;
+    }
+
+    public function close(int $fd): ?Socket
+    {
+
+        return $socket ?? null;
+    }
+
+    public function onStart(): void
+    {
+        foreach ($this->endpoints as $endpoint) {
+            if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
+                $this->log()->info("fix $endpoint[0]");
+                chmod($endpoint[0], 0777);
+            }
+        }
+    }
+
     public function log(): ?LoggerInterface
     {
         return $this->logger;
-    }
-
-    protected function afterStart(): void
-    {
-        foreach ($this->endpoints as $endpoint) {
-            if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM]))
-                chmod($endpoint[0], 0777);
-        }
     }
 }

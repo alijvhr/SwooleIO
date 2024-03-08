@@ -47,6 +47,15 @@ class Route
         return $this;
     }
 
+    public function on(string $event, callable $callback): self
+    {
+        if(isset($this->listeners[$event]))
+            $this->listeners[$event][] = $callback;
+        else
+            $this->listeners[$event] = [$callback];
+        return $this;
+    }
+
     public function to($room): BroadcastOperator
     {
         return (new BroadcastOperator($this))->to($room);
@@ -119,14 +128,14 @@ class Route
 
     public function disconnectSockets($close = false)
     {
-        return (new BroadcastOperator($this))->disconnectSockets($close);
+        (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    public function receive(string $session, Packet $packet): void
+    public function receive(IO\Socket $socket, Packet $packet): void
     {
         $listeners = $this->listeners[$packet->getEvent()]??[];
         foreach ($listeners as $listener)
-            $listener($session);
+            $listener($socket, $packet);
     }
 
     /**

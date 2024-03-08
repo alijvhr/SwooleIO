@@ -4,7 +4,6 @@ namespace SwooleIO\IO;
 
 use OpenSwoole\Process\Pool;
 use OpenSwoole\Server;
-use OpenSwoole\Server as OpenSwooleTCPServer;
 use SwooleIO\Lib\Process;
 
 class PassiveProcess
@@ -19,7 +18,7 @@ class PassiveProcess
     protected mixed $data;
 
     /**
-     * @param OpenSwooleTCPServer|Pool $container
+     * @param Server|Pool $container
      * @param string $type
      * @param class-string<Process> $class
      * @param mixed|null $data

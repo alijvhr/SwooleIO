@@ -1,15 +1,15 @@
 <?php
 
-namespace SwooleIO\Psr;
+namespace SwooleIO\Psr\Handler;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-class QueueRequestHandler implements RequestHandlerInterface
+class QueueRequestHandler implements StackRequestHandler
 {
-    private array $middlewares = [];
+    protected array $middlewares = [];
 
     protected bool $isHandling = false;
     private RequestHandlerInterface $fallbackHandler;
@@ -19,7 +19,7 @@ class QueueRequestHandler implements RequestHandlerInterface
         $this->fallbackHandler = $fallbackHandler;
     }
 
-    public function add(MiddlewareInterface $middleware):self
+    public function add(MiddlewareInterface $middleware): StackRequestHandler
     {
         $this->middlewares[] = $middleware;
         return $this;
@@ -32,13 +32,7 @@ class QueueRequestHandler implements RequestHandlerInterface
             $stack->isHandling = true;
         } else
             $stack = $this;
-        if (0 === count($stack->middlewares)) {
-            return $stack->fallbackHandler->handle($request);
-        }
-
-
-        $middleware = array_shift($stack->middlewares);
-        return $middleware->process($request, $this);
+        return array_pop($stack->middlewares)?->process($request, $stack) ?? $stack->fallbackHandler->handle($request);
     }
 
 }

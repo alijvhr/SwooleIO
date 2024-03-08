@@ -15,14 +15,15 @@ class Table implements \Iterator, \Countable
         'str-s' => [sTable::TYPE_STRING, 64],
         'str' => [sTable::TYPE_STRING, 256],
         'str-b' => [sTable::TYPE_STRING, 1024],
+        'text' => [sTable::TYPE_STRING, 8192],
         'arr-2' => [sTable::TYPE_STRING, 2048],
         'arr-4' => [sTable::TYPE_STRING, 2048],
         'arr' => [sTable::TYPE_STRING, 2048],
         'list' => [sTable::TYPE_STRING, 4096],
-        'json' => [sTable::TYPE_STRING, 4096]
+        'json' => [sTable::TYPE_STRING, 8192]
     ];
 
-    const Castables = ['arr-2', 'arr-4', 'arr', 'json'];
+    const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list'];
 
     const DefaultSize = 1000;
     public int $size;
@@ -143,7 +144,7 @@ class Table implements \Iterator, \Countable
         if ($this->expired($key)) return null;
         if ($column) {
             $data = $this->table->get($key, $column);
-            return $this->castTo($data, $this->casts[$column]);
+            return isset($this->casts[$column]) ? $this->castTo($data, $this->casts[$column]) : $data;
         } else {
             $data = $this->table->get($key);
             foreach ($this->casts as $col => $type)
@@ -152,7 +153,7 @@ class Table implements \Iterator, \Countable
         }
     }
 
-    protected function castTo(string $data, string $type): array
+    protected function castTo(string $data, ?string $type): mixed
     {
         return match ($type) {
             'json' => json_decode($data),
@@ -160,15 +161,17 @@ class Table implements \Iterator, \Countable
             'arr-4' => unpack('l*', $data, 2),
             'arr' => unpack('q*', $data, 2),
             'list' => explode('|', $data),
+            default => $data
         };
     }
 
-    protected function castSize(string $type): string
+    protected function castSize(string $type): int
     {
         return match ($type) {
             'arr-2' => 2,
             'arr-4' => 4,
-            'arr' => 8
+            'arr' => 8,
+            default => 0
         };
     }
 
@@ -177,13 +180,14 @@ class Table implements \Iterator, \Countable
      * @param string $column
      * @param int|string $value
      * @return int|string
-     * @throws NotArrayException
+     * @throws WrongTypeColumn
      */
     public function push(string $key, string $column, int|string $value): int|string
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
-            'list' => ["$data|$value", substr_count($data, '|') + 1],
-            'arr', 'arr-2', 'arr-4' => [$data . $this->castFrom([$value], $type), strlen($data) / $size + 1],
+            'list' => ["$data|$value", substr_count($data, '|') + 1, $value],
+            'arr', 'arr-2', 'arr-4' => [$data . $this->castFrom([$value], $type), strlen($data) / $size + 1, $value],
+            'json' => $this->{"pop_" . $type}($data),
         })[1];
     }
 
@@ -192,32 +196,48 @@ class Table implements \Iterator, \Countable
      * @param string $column
      * @param callable $func
      * @return array
-     * @throws NotArrayException
+     * @throws WrongTypeColumn
      */
-    #[ArrayShape(['string', 'int', 'string'])]
+    #[ArrayShape(['string', 'int', 'string', 'string'])]
     protected function update(string $key, string $column, callable $func): array
     {
         $type = $this->columns[$column];
-        if (!preg_match('/^(arr|list)/', $type)) throw new NotArrayException();
+        if (!preg_match('/^(arr|list|json)/', $type)) throw new WrongTypeColumn();
         $size = $this->castSize($type);
         $data = $this->rawCol($key, $column);
-        [$data, $count] = $func($data, $size, $type);
+        [$data, $count, $item] = $func($data, $size, $type);
         $this->table->set($key, [$column => $data]);
-        return [$data, $count, $type];
+        return [$data, $count, $type, $item];
+    }
+
+    /**
+     * @param string $key
+     * @param string $column
+     * @param string $value
+     * @return string
+     * @throws WrongTypeColumn
+     */
+    public function append(string $key, string $column, string $value): string
+    {
+        $type = $this->columns[$column];
+        if (!preg_match('/^(str|text)/', $type)) throw new WrongTypeColumn();
+        $data = $this->rawCol($key, $column) . $value;
+        $this->table->set($key, [$column => $data]);
+        return $data;
     }
 
     /**
      * @param string $key
      * @param string $column
      * @return int|string
-     * @throws NotArrayException
+     * @throws WrongTypeColumn
      */
     public function pop(string $key, string $column): int|string
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
-            'list' => [substr($data, 0, strrpos($data, '|')), substr_count($data, '|') - 1],
-            'arr', 'arr-2', 'arr-4' => [substr($data, 0, -$size), strlen($data) / $size - 1],
-        })[1];
+            'arr', 'arr-2', 'arr-4' => [substr($data, 0, -$size), strlen($data) / $size - 1, substr($data, -$size)],
+            'json', 'list' => $this->{"pop_" . $type}($data),
+        })[3];
     }
 
     /**
@@ -225,12 +245,12 @@ class Table implements \Iterator, \Countable
      * @param string $column
      * @param $needle
      * @return int|false
-     * @throws NotArrayException
+     * @throws WrongTypeColumn
      */
     public function find(string $key, string $column, $needle): int|false
     {
         $type = $this->columns[$column];
-        if (!preg_match('/^(arr|list)/', $type)) throw new NotArrayException();
+        if (!preg_match('/^(arr|list)/', $type)) throw new WrongTypeColumn();
         $size = $this->castSize($type);
         $data = substr($this->rawCol($key, $column), 0, -$size);
         $this->table->set($key, [$column => $data]);
@@ -290,5 +310,28 @@ class Table implements \Iterator, \Countable
     public function count(): int
     {
         return $this->table->count();
+    }
+
+    #[ArrayShape(['string', 'string', 'int'])]
+    protected function pop_list($data): array
+    {
+        $item = substr($data, strrpos($data, '|') + 1);
+        return [substr($data, 0, -strlen($item)), substr_count($data, '|') - 1, $item];
+    }
+
+    #[ArrayShape(['string', 'string', 'int'])]
+    protected function pop_json($data): array
+    {
+        $data = $this->castTo($data, 'json');
+        $item = array_pop($data);
+        return [$this->castFrom($data, 'json'), count($data), $item];
+    }
+
+    #[ArrayShape(['string', 'string', 'int'])]
+    protected function push_json(string $data, string $item): array
+    {
+        $data = $this->castTo($data, 'json');
+        $data[] = $item;
+        return [$this->castFrom($data, 'json'), count($data), $item];
     }
 }

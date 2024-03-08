@@ -1,11 +1,11 @@
 <?php
 
-namespace SwooleIO\Psr\Middleware;
+namespace SwooleIO\Psr\Handler;
 
+use OpenSwoole\Core\Psr\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use OpenSwoole\Core\Psr\Response;
 
 class NotFoundHandler implements RequestHandlerInterface {
     private ResponseInterface $responsePrototype;

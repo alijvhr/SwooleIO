@@ -9,6 +9,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\MessageBroker;
 use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\IO\Socket;
 use function SwooleIO\io;
 use function SwooleIO\uuid;
 
@@ -17,23 +18,25 @@ class SocketIOMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $io = io();
-        $uri = $request->getUri();
+        $uri = $request->getUri()->getPath();
         $method = $request->getMethod();
         $GET = $request->getQueryParams();
-        $session = $GET['sid'] ?? '';
         $path = $io->path();
-        if (str_starts_with($path, $uri)) {
-            if ($session) {
+        if (str_starts_with($uri, $path)) {
+            $sid = $GET['sid'] ?? base64_encode(substr(uuid(), 0, 19) . $io->getServerID());
+            $socket = $io->socket($sid, $request);
+            if ($socket->sid()) {
                 if ($method == 'post') {
                     $packet = Packet::from($request->getBody());
-                    go(fn() => Route::get($packet->getNamespace())->receive($session, $packet));
+                    go(fn() => Route::get($packet->getNamespace())->receive($socket, $packet));
                     return new Response('ok');
                 }
-                return new Response(MessageBroker::instance()->flush($GET['sid']));
+                return new Response($socket->flush()?: EioPacket::create('noop')->encode());
             }
-            $sid = base64_encode(substr(uuid(), 0, 19) . $io->getServerID());
+            $socket->sid($sid);
             $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $io->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);
             $response = new Response($packet->encode());
+            /** @var ResponseInterface */
             return $response->withHeader('sid', $sid);
         } else
             return $handler->handle($request);
