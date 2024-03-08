@@ -3,7 +3,7 @@
 namespace SwooleIO\IO;
 
 use OpenSwoole\WebSocket\Server;
-use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\EngineIO\Packet;
 use SwooleIO\IO;
 use SwooleIO\Memory\WrongTypeColumn;
@@ -17,7 +17,7 @@ class Socket
     protected IO $io;
     protected Server $server;
 
-    public function __construct(public RequestInterface $request, protected string $pid)
+    public function __construct(public ServerRequestInterface $request, protected string $pid)
     {
         $this->io = io();
         $this->server = $this->io->server();
@@ -25,9 +25,28 @@ class Socket
             $this->fd = $this->request->fd;
     }
 
+    public static function bySid(string $sid, ServerRequestInterface $request = null): ?Socket
+    {
+        $io = io();
+        $pid = $io->table('sid')->get($sid, 'pid');
+        return $io->recover($pid, $request);
+    }
+
+    public static function byPid(string $pid, ServerRequestInterface $request = null): ?Socket
+    {
+        return io()->recover($pid, $request);
+    }
+
+    public static function byFd(int $fd, ServerRequestInterface $request = null): ?Socket
+    {
+        $io = io();
+        $pid = $io->table('fd')->get($fd, 'pid');
+        return $io->recover($pid, $request);
+    }
+
     public function flush(): ?string
     {
-        return io()->table('pid')->get($this->pid, 'buffer');
+        return ltrim(io()->table('pid')->get($this->pid, 'buffer'), chr(30));
     }
 
     public function fd(int $fd = null): int
@@ -55,14 +74,12 @@ class Socket
         return $this->pid;
     }
 
-    /**
-     * @throws WrongTypeColumn
-     */
     public function emit(Packet $packet): bool
     {
+        $payload = $packet->encode(true);
         if (isset($this->fd) && $this->server->isEstablished($this->fd))
-            return $this->server->push($this->fd, $packet->encode());
-        $this->io->table('pid')->push($this->pid, 'buffer', $packet->encode());
+            if (!$this->server->push($this->fd, $payload))
+                $this->io->table('pid')->push($this->pid, 'buffer', chr(30) . $payload);
         return false;
     }
 

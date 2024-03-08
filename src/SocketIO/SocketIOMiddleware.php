@@ -7,9 +7,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use SwooleIO\EngineIO\MessageBroker;
 use SwooleIO\EngineIO\Packet as EioPacket;
-use SwooleIO\IO\Socket;
 use function SwooleIO\io;
 use function SwooleIO\uuid;
 
@@ -26,9 +24,9 @@ class SocketIOMiddleware implements MiddlewareInterface
             $sid = $GET['sid'] ?? base64_encode(substr(uuid(), 0, 19) . $io->getServerID());
             $socket = $io->socket($sid, $request);
             if ($socket->sid()) {
-                if ($method == 'post') {
+                if ($method == 'POST') {
                     $packet = Packet::from($request->getBody());
-                    go(fn() => Route::get($packet->getNamespace())->receive($socket, $packet));
+                    $io->of($packet->getNamespace())->receive($socket, $packet);
                     return new Response('ok');
                 }
                 return new Response($socket->flush()?: EioPacket::create('noop')->encode());
