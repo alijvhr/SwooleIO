@@ -1,11 +1,10 @@
 <?php
 
-namespace SwooleIO\IO;
+namespace SwooleIO\SocketIO;
 
 use OpenSwoole\WebSocket\Server;
 use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\IO;
-use SwooleIO\SocketIO\Packet;
 use function SwooleIO\io;
 
 class Socket
@@ -26,7 +25,7 @@ class Socket
     protected IO $io;
     protected Server $server;
 
-    public function __construct(public ServerRequestInterface $request, protected string $pid)
+    public function __construct(public ServerRequestInterface $request, protected string $pid, protected ?string $namespace = null)
     {
         $this->io = io();
         $this->server = $this->io->server();
@@ -39,7 +38,7 @@ class Socket
         return self::recover($pid, $request) ?? self::add(new Socket($request, $pid));
     }
 
-    public static function recover(string $pid, ServerRequestInterface $request = null): ?Socket
+    public static function recover(string $pid, ?ServerRequestInterface $request = null): ?Socket
     {
         $socket = null;
         if (isset(self::$sockets[$pid]))
@@ -110,6 +109,16 @@ class Socket
         return self::recover($pid, $request);
     }
 
+    public function nsp(string $nsp = null): ?string
+    {
+        if (isset($nsp)) {
+            $this->namespace = $nsp;
+            $this->io->table('sid')->set($this->sid, ['pid' => $this->pid]);
+            $this->io->table('pid')->set($this->pid, ['sid' => $this->sid]);
+        }
+        return $this->sid ?? null;
+    }
+
     public function flush(): ?string
     {
         return ltrim(io()->table('pid')->get($this->pid, 'buffer'), chr(30));
@@ -137,14 +146,7 @@ class Socket
 
     public function emit(string $event, mixed ...$data): bool
     {
-        if(in_array($event, self::reserved_events)) return false;
-        $packet = Packet::create('event', $event, ...$data);
-        return $this->push($packet);
-    }
-
-    public function emitReserved(string $event, mixed ...$data): bool
-    {
-        if(!in_array($event, self::reserved_events)) return false;
+        if (in_array($event, self::reserved_events)) return false;
         $packet = Packet::create('event', $event, ...$data);
         return $this->push($packet);
     }
@@ -158,6 +160,13 @@ class Socket
                 return false;
             }
         return true;
+    }
+
+    public function emitReserved(string $event, mixed ...$data): bool
+    {
+        if (!in_array($event, self::reserved_events)) return false;
+        $packet = Packet::create('event', $event, ...$data);
+        return $this->push($packet);
     }
 
     public function disconnect(): bool

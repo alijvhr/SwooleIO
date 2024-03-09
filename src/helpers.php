@@ -43,7 +43,7 @@ if (!function_exists('interpolate')) {
     {
         $replace = [];
         foreach ($context as $key => $val)
-            $replace["\{$key}"] = $val;
+            $replace['{' . $key . '}'] = $val;
         return strtr($message, $replace);
     }
 }

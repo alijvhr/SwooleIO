@@ -8,9 +8,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
-use SwooleIO\IO\Socket;
 use function SwooleIO\io;
-use function SwooleIO\uuid;
 
 class SocketIOMiddleware implements MiddlewareInterface
 {

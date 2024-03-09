@@ -4,11 +4,12 @@ namespace SwooleIO\SocketIO;
 
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Adapter;
-use SwooleIO\IO\Socket;
+use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
 
 class Nsp
 {
+    use EventHandler;
 
     protected static array $routes = [];
     public string $path;
@@ -138,7 +139,7 @@ class Nsp
         $io = io();
         switch ($packet->getSocketType(true)) {
             case 0:
-                $socket->emit(Packet::create('connect', ['sid' => $io->generateSid()]));
+                $socket->push(Packet::create('connect', ['sid' => $io->generateSid()]));
                 break;
             case 2:
                 $io->of($packet->getNamespace())->receive($socket, $packet);

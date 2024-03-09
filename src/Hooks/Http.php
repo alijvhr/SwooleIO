@@ -12,6 +12,7 @@ use SwooleIO\Psr\Handler\NotFoundHandler;
 use SwooleIO\Psr\Handler\QueueRequestHandler;
 use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\SocketIO\SocketIOMiddleware;
+use function SwooleIO\io;
 
 class Http extends Hook
 {

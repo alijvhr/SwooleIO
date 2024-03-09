@@ -1,12 +1,12 @@
 <?php
 
-namespace SwooleIO\IO;
+namespace SwooleIO\Lib;
 
 use Psr\EventDispatcher\StoppableEventInterface;
 use SwooleIO\Psr\Event\EventDispatcher;
 use SwooleIO\Psr\Event\ListenerProvider;
 
-class EventHandler
+trait EventHandler
 {
 
     protected ListenerProvider $listener;

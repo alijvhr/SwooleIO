@@ -3,16 +3,15 @@
 namespace SwooleIO\Hooks;
 
 use OpenSwoole\Core\Psr\ServerRequest;
+use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
-use OpenSwoole\Http\Request;
 use SwooleIO\EngineIO\InvalidPacketException;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\IO;
-use SwooleIO\IO\Socket;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Nsp;
+use SwooleIO\SocketIO\Socket;
 
 class WebSocket extends Hook
 {
@@ -47,7 +46,7 @@ class WebSocket extends Hook
      */
     public function onMessage(Server $server, Frame $frame): void
     {
-        $packet = Packet::parse($frame->data);
+        $packet = Packet::from($frame->data);
         $io = $this->io;
         $socket = Socket::byFd($frame->fd);
         switch ($packet->getEngineType(true)) {

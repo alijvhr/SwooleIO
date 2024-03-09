@@ -1,10 +1,9 @@
 <?php
 
-namespace SwooleIO\IO;
+namespace SwooleIO\Lib;
 
 use OpenSwoole\Process\Pool;
 use OpenSwoole\Server;
-use SwooleIO\Lib\Process;
 
 class PassiveProcess
 {

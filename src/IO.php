@@ -14,9 +14,8 @@ use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
-use SwooleIO\IO\EventHandler;
-use SwooleIO\IO\PassiveProcess;
-use SwooleIO\IO\Socket;
+use SwooleIO\Lib\EventHandler;
+use SwooleIO\Lib\PassiveProcess;
 use SwooleIO\Lib\Singleton;
 use SwooleIO\Memory\DuplicateTableNameException;
 use SwooleIO\Memory\Table;
@@ -25,6 +24,7 @@ use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet;
+use SwooleIO\SocketIO\Socket;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -35,7 +35,6 @@ class IO extends Singleton implements LoggerAwareInterface
 
     protected WebsocketServer $server;
     protected TableContainer $tables;
-    protected EventHandler $evHandler;
     protected array $transports = ['polling', 'websocket'];
 
     protected string $path;
@@ -54,18 +53,12 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         self::$serverID = substr(uuid(), -17);
         $this->logger = new FallbackLogger();
-        $this->evHandler = new EventHandler();
         $this->tables = new TableContainer([
             'fd' => [['pid' => 'str'], 1e5],
             'sid' => [['pid' => 'str', 'fd' => 'int'], 1e5],
             'pid' => [['fd' => 'int', 'sid' => 'str', 'room' => 'list', 'buffer' => 'text'], 1e5],
             'room' => [['pid' => 'list'], 1e4],
         ]);
-    }
-
-    public function event(): EventHandler
-    {
-        return $this->evHandler;
     }
 
     public function getTransports(): array
@@ -130,6 +123,11 @@ class IO extends Singleton implements LoggerAwareInterface
     public function of(string $namespace): Nsp
     {
         return Nsp::get($namespace);
+    }
+
+    public function on(string $event, callable $callback): Nsp
+    {
+        return Nsp::get('/')->on($event, $callback);
     }
 
     public function receive(Socket $socket, Packet $packet): void
