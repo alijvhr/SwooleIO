@@ -10,7 +10,14 @@ use function SwooleIO\io;
 
 class Socket
 {
-
+    const reserved_events = [
+        "connect",
+        "connect_error",
+        "disconnect",
+        "disconnecting",
+        "newListener",
+        "removeListener",
+    ];
 
     /** @var Socket[] */
     protected static array $sockets;
@@ -130,7 +137,14 @@ class Socket
 
     public function emit(string $event, mixed ...$data): bool
     {
-        if()
+        if(in_array($event, self::reserved_events)) return false;
+        $packet = Packet::create('event', $event, ...$data);
+        return $this->push($packet);
+    }
+
+    public function emitReserved(string $event, mixed ...$data): bool
+    {
+        if(!in_array($event, self::reserved_events)) return false;
         $packet = Packet::create('event', $event, ...$data);
         return $this->push($packet);
     }

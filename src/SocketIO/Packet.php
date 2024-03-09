@@ -14,15 +14,6 @@ use SwooleIO\EngineIO\Packet as EngineIOPacket;
 class Packet extends EngineIOPacket
 {
 
-    const reserved_events = [
-        "connect",
-        "connect_error",
-        "disconnect",
-        "disconnecting",
-        "newListener",
-        "removeListener",
-    ];
-
     const types = [
         'connect',
         'disconnect',
@@ -176,7 +167,7 @@ class Packet extends EngineIOPacket
                     break;
                 case 2:
                 case 5:
-                    $valid = is_array($payload) && (is_numeric($payload[0]) || (is_string($payload[0]) && !in_array($payload[0], self::reserved_events)));
+                    $valid = is_array($payload) && (is_numeric($payload[0]) || (is_string($payload[0])));
                     $this->event = $payload[0];
                     $this->params = array_slice($payload, 1);
                     $this->data = $payload;
