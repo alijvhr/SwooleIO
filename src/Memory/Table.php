@@ -20,10 +20,11 @@ class Table implements \Iterator, \Countable
         'arr-4' => [sTable::TYPE_STRING, 2048],
         'arr' => [sTable::TYPE_STRING, 2048],
         'list' => [sTable::TYPE_STRING, 4096],
-        'json' => [sTable::TYPE_STRING, 8192]
+        'json' => [sTable::TYPE_STRING, 8192],
+        'phps' => [sTable::TYPE_STRING, 8192],
     ];
 
-    const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list'];
+    const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'phps'];
 
     const DefaultSize = 1000;
     public int $size;
@@ -97,6 +98,7 @@ class Table implements \Iterator, \Countable
     {
         return match ($type) {
             'json' => json_encode($data),
+            'phps' => serialize($data),
             'arr-2' => pack('s*', ...$data),
             'arr-4' => pack('l*', ...$data),
             'arr' => pack('q*', ...$data),
@@ -157,6 +159,7 @@ class Table implements \Iterator, \Countable
     {
         return match ($type) {
             'json' => json_decode($data),
+            'phps' => unserialize($data),
             'arr-2' => unpack('s*', $data, 2),
             'arr-4' => unpack('l*', $data, 2),
             'arr' => unpack('q*', $data, 2),
@@ -187,7 +190,7 @@ class Table implements \Iterator, \Countable
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'list' => ["$data|$value", substr_count($data, '|') + 1, $value],
             'arr', 'arr-2', 'arr-4' => [$data . $this->castFrom([$value], $type), strlen($data) / $size + 1, $value],
-            'json' => $this->{"pop_" . $type}($data),
+            'json', 'phps' => $this->push_json($data, $value),
         })[1];
     }
 
@@ -202,7 +205,7 @@ class Table implements \Iterator, \Countable
     protected function update(string $key, string $column, callable $func): array
     {
         $type = $this->columns[$column];
-        if (!preg_match('/^(arr|list|json)/', $type)) throw new WrongTypeColumn();
+        if (!preg_match('/^(arr|list|json|phps)/', $type)) throw new WrongTypeColumn();
         $size = $this->castSize($type);
         $data = $this->rawCol($key, $column);
         [$data, $count, $item] = $func($data, $size, $type);
@@ -236,25 +239,8 @@ class Table implements \Iterator, \Countable
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'arr', 'arr-2', 'arr-4' => [substr($data, 0, -$size), strlen($data) / $size - 1, substr($data, -$size)],
-            'json', 'list' => $this->{"pop_" . $type}($data),
+            'json', 'list' => $this->pop_json($data),
         })[3];
-    }
-
-    /**
-     * @param string $key
-     * @param string $column
-     * @param $needle
-     * @return int|false
-     * @throws WrongTypeColumn
-     */
-    public function find(string $key, string $column, $needle): int|false
-    {
-        $type = $this->columns[$column];
-        if (!preg_match('/^(arr|list)/', $type)) throw new WrongTypeColumn();
-        $size = $this->castSize($type);
-        $data = substr($this->rawCol($key, $column), 0, -$size);
-        $this->table->set($key, [$column => $data]);
-        return strlen($data) / $size;
     }
 
     public function exists(string $key): bool
