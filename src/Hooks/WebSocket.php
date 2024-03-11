@@ -11,7 +11,7 @@ use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Socket;
+use SwooleIO\SocketIO\Connection;
 
 class WebSocket extends Hook
 {
@@ -35,7 +35,7 @@ class WebSocket extends Hook
         /** @var ServerRequest $serverRequest */
         $serverRequest = ServerRequest::from($request);
         $sid = $serverRequest->getQueryParam('sid', '');
-        Socket::bySid($sid, $serverRequest)->fd($request->fd);
+        Connection::bySid($sid, $serverRequest)->fd($request->fd);
     }
 
     /**
@@ -48,7 +48,7 @@ class WebSocket extends Hook
     {
         $packet = Packet::from($frame->data);
         $io = $this->io;
-        $socket = Socket::byFd($frame->fd);
+        $socket = Connection::byFd($frame->fd);
         switch ($packet->getEngineType(true)) {
             case 2:
                 $socket->emit(EioPacket::create('pong', $packet->getPayload()));
@@ -60,6 +60,6 @@ class WebSocket extends Hook
 
     public function onClose(Server $server, int $fd): void
     {
-        Socket::clean($fd);
+        Connection::clean($fd);
     }
 }

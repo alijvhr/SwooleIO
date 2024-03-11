@@ -7,12 +7,11 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Server;
+use SwooleIO\EngineIO\EngineIOMiddleware;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\Handler\NotFoundHandler;
 use SwooleIO\Psr\Handler\QueueRequestHandler;
 use SwooleIO\Psr\Handler\StackRequestHandler;
-use SwooleIO\SocketIO\SocketIOMiddleware;
-use function SwooleIO\io;
 
 class Http extends Hook
 {
@@ -22,7 +21,7 @@ class Http extends Hook
     {
         parent::__construct($target, $registerNow);
         $this->handler = new QueueRequestHandler(new NotFoundHandler());
-        $this->handler->add(new SocketIOMiddleware());
+        $this->handler->add(new EngineIOMiddleware());
     }
 
     public function onRequest(Request $request, Response $response): void

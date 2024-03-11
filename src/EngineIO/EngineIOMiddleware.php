@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\SocketIO;
+namespace SwooleIO\EngineIO;
 
 use OpenSwoole\Core\Psr\Response;
 use Psr\Http\Message\ResponseInterface;
@@ -8,9 +8,11 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\SocketIO\Packet;
+use SwooleIO\SocketIO\Connection;
 use function SwooleIO\io;
 
-class SocketIOMiddleware implements MiddlewareInterface
+class EngineIOMiddleware implements MiddlewareInterface
 {
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
@@ -21,7 +23,7 @@ class SocketIOMiddleware implements MiddlewareInterface
         $path = $io->path();
         if (str_starts_with($uri, $path)) {
             $sid = $GET['sid'] ?? $io->generateSid();
-            $socket = Socket::fetch($sid, $request);
+            $socket = Connection::connect($sid, $request);
             if ($socket->sid()) {
                 if ($method == 'POST') {
                     $packet = Packet::from($request->getBody());

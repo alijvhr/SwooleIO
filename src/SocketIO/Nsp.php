@@ -129,12 +129,12 @@ class Nsp
         (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    public function receive(Socket $socket, Packet $packet): void
+    public function receive(Connection $socket, Packet $packet): void
     {
         io()->server()->defer(fn() => $this->dispatch($socket, $packet));
     }
 
-    private function dispatch(Socket $socket, Packet $packet): void
+    private function dispatch(Connection $socket, Packet $packet): void
     {
         $io = io();
         switch ($packet->getSocketType(true)) {

@@ -14,7 +14,6 @@ use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
-use SwooleIO\Lib\EventHandler;
 use SwooleIO\Lib\PassiveProcess;
 use SwooleIO\Lib\Singleton;
 use SwooleIO\Memory\DuplicateTableNameException;
@@ -24,7 +23,7 @@ use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Socket;
+use SwooleIO\SocketIO\Connection;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -41,11 +40,6 @@ class IO extends Singleton implements LoggerAwareInterface
     protected array $endpoints = [];
     protected StackRequestHandler $reqHandler;
 
-    public function getServerID(): string
-    {
-        return self::$serverID ?? '';
-    }
-
     /**
      * @throws DuplicateTableNameException
      */
@@ -54,10 +48,12 @@ class IO extends Singleton implements LoggerAwareInterface
         self::$serverID = substr(uuid(), -17);
         $this->logger = new FallbackLogger();
         $this->tables = new TableContainer([
-            'fd' => [['pid' => 'str'], 1e5],
-            'sid' => [['pid' => 'str', 'fd' => 'int'], 1e5],
-            'pid' => [['fd' => 'int', 'sid' => 'str', 'room' => 'list', 'buffer' => 'text'], 1e5],
-            'room' => [['pid' => 'list'], 1e4],
+            'fd' => [['sid' => 'str'], 1e5],
+            'sid' => [['pid' => 'str', 'fd' => 'int', 'buffer' => 'text', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'str-s'], 1e5],
+//            'pid' => [['sid' => 'str'], 1e5],
+            'room' => [['cid' => 'list'], 1e4],
+            'cid' => [['conn' => 'phps'], 1e6],
+            'nsp' => [['cid' => 'list'], 1e3],
         ]);
     }
 
@@ -114,23 +110,18 @@ class IO extends Singleton implements LoggerAwareInterface
         PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker', $this);
     }
 
+    public function on(string $event, callable $callback): Nsp
+    {
+        return Nsp::get('/')->on($event, $callback);
+    }
+
     public function listen(string $host, int $port, int $sockType): self
     {
         $this->endpoints[] = [$host, $port, $sockType];
         return $this;
     }
 
-    public function of(string $namespace): Nsp
-    {
-        return Nsp::get($namespace);
-    }
-
-    public function on(string $event, callable $callback): Nsp
-    {
-        return Nsp::get('/')->on($event, $callback);
-    }
-
-    public function receive(Socket $socket, Packet $packet): void
+    public function receive(Connection $socket, Packet $packet): void
     {
         switch ($packet->getEngineType(true)) {
             case 2:
@@ -139,6 +130,11 @@ class IO extends Singleton implements LoggerAwareInterface
             case 4:
                 $this->of($packet->getNamespace())->receive($socket, $packet);
         }
+    }
+
+    public function of(string $namespace): Nsp
+    {
+        return Nsp::get($namespace);
     }
 
     public function close(int $fd): bool
@@ -164,5 +160,10 @@ class IO extends Singleton implements LoggerAwareInterface
     public function generateSid(): string
     {
         return base64_encode(substr(uuid(), 0, 19) . $this->getServerID());
+    }
+
+    public function getServerID(): string
+    {
+        return self::$serverID ?? '';
     }
 }
