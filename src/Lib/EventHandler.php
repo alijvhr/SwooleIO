@@ -12,7 +12,7 @@ trait EventHandler
     protected ListenerProvider $listener;
     protected EventDispatcher $dispatcher;
 
-    public function __construct()
+    protected function initializeEvHandler(): void
     {
         $this->listener = new ListenerProvider();
         $this->dispatcher = new EventDispatcher($this->listener);
@@ -20,11 +20,13 @@ trait EventHandler
 
     public function dispatch(StoppableEventInterface $event): StoppableEventInterface
     {
+        if(!isset($this->listener)) $this->initializeEvHandler();
         return $this->dispatcher->dispatch($event);
     }
 
     public function on(string $event, callable $listener): ListenerProvider
     {
+        if(!isset($this->listener)) $this->initializeEvHandler();
         return $this->listener->addListener($event, $listener);
     }
 

@@ -23,7 +23,7 @@ class ListenerProvider implements ListenerProviderInterface
      */
     public function getListenersForEvent(object $event): iterable
     {
-        $eventType = get_class($event);
+        $eventType = $event->type ?? get_class($event);
         if (array_key_exists($eventType, $this->listeners)) {
             return $this->listeners[$eventType];
         }

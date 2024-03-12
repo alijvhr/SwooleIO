@@ -3,13 +3,13 @@
 namespace SwooleIO\EngineIO;
 
 use OpenSwoole\Core\Psr\Response;
+use OpenSwoole\Coroutine;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Connection;
 use function SwooleIO\io;
 
 class EngineIOMiddleware implements MiddlewareInterface
@@ -19,23 +19,35 @@ class EngineIOMiddleware implements MiddlewareInterface
         $io = io();
         $uri = $request->getUri()->getPath();
         $method = $request->getMethod();
-        $GET = $request->getQueryParams();
         $path = $io->path();
         if (str_starts_with($uri, $path)) {
-            $sid = $GET['sid'] ?? $io->generateSid();
-            $socket = Connection::connect($sid, $request);
-            if ($socket->sid()) {
-                if ($method == 'POST') {
-                    $packet = Packet::from($request->getBody());
-                    $io->receive($socket, $packet);
-                    return new Response('ok');
+            if ($sid = $request->getQueryParam('sid')) {
+                $socket = Socket::recover($sid);
+                if (!isset($socket)) $response = new Response('Required parameter missing', 400);
+                elseif ($method == 'POST') {
+                    $response = new Response('ok');
+                    $socket->receive(Packet::from($request->getBody()));
+                } else {
+                    $timeout = time() + 5;
+                    while (time() < $timeout) {
+                        $isPolling = $socket->transport() == 'polling';
+                        $buffer = $socket->drain();
+                        if ($isPolling && $buffer) {
+                            $response = new Response($buffer);
+                            break;
+                        } elseif (!$isPolling || $socket->fd()) {
+                            $response = new Response(EioPacket::create('noop')->encode());
+                            break;
+                        } else
+                            Coroutine::usleep(100);
+                    }
+                    if (!isset($response))
+                        $response = new Response('2');
                 }
-                $buffer = $socket->flush();
-                return new Response($socket->isConnected() || !$buffer ? EioPacket::create('noop')->encode() : $buffer);
+            } else {
+                Socket::create($sid = $io->generateSid());
+                $response = new Response(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($io->getTransports(), 1), "pingInterval" => 10000, "pingTimeout" => 5000])->encode());
             }
-            $socket->sid($sid);
-            $packet = EioPacket::create('open', ["sid" => $sid, "upgrades" => $io->getTransports(), "pingInterval" => 25000, "pingTimeout" => 5000]);
-            $response = new Response($packet->encode());
             /** @var ResponseInterface */
             return $response->withHeader('sid', $sid);
         } else

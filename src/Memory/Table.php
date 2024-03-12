@@ -94,7 +94,7 @@ class Table implements \Iterator, \Countable
         return $this->table->set($key, $row);
     }
 
-    protected function castFrom(array $data, string $type): string
+    protected function castFrom(mixed $data, string $type): string
     {
         return match ($type) {
             'json' => json_encode($data),
@@ -158,7 +158,7 @@ class Table implements \Iterator, \Countable
     protected function castTo(string $data, ?string $type): mixed
     {
         return match ($type) {
-            'json' => json_decode($data),
+            'json' => json_decode($data, true),
             'phps' => unserialize($data),
             'arr-2' => unpack('s*', $data, 2),
             'arr-4' => unpack('l*', $data, 2),
@@ -254,11 +254,25 @@ class Table implements \Iterator, \Countable
     }
 
     #[ArrayShape(['string', 'string', 'int'])]
-    protected function pop_json($data): array
+    protected function pop_json(string $data): array
     {
         $data = $this->castTo($data, 'json');
         $item = array_pop($data);
         return [$this->castFrom($data, 'json'), count($data), $item];
+    }
+
+    /**
+     * @param string $key
+     * @param string $column
+     * @return int|string
+     * @throws WrongTypeColumn
+     */
+    public function remove(string $key, string $column, int|string $value): int|string
+    {
+        return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
+            'arr', 'arr-2', 'arr-4' => [str_replace($this->castFrom([$value], $type), '', $data, $count), strlen($data) / $size - $count, $value],
+            'list' => [str_replace("|$value|", '|', $data, $count), substr_count($data, '|') + 1 - $count, $value],
+        })[1];
     }
 
     public function exists(string $key): bool
@@ -314,12 +328,5 @@ class Table implements \Iterator, \Countable
     public function count(): int
     {
         return $this->table->count();
-    }
-
-    #[ArrayShape(['string', 'string', 'int'])]
-    protected function pop_list($data): array
-    {
-        $item = substr($data, strrpos($data, '|') + 1);
-        return [substr($data, 0, -strlen($item)), substr_count($data, '|') - 1, $item];
     }
 }

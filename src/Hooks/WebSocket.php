@@ -6,12 +6,11 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
-use SwooleIO\EngineIO\InvalidPacketException;
-use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\EngineIO\Socket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Connection;
+use function SwooleIO\io;
 
 class WebSocket extends Hook
 {
@@ -32,34 +31,30 @@ class WebSocket extends Hook
 
     public function onOpen(Server $server, Request $request): void
     {
-        /** @var ServerRequest $serverRequest */
-        $serverRequest = ServerRequest::from($request);
-        $sid = $serverRequest->getQueryParam('sid', '');
-        Connection::bySid($sid, $serverRequest)->fd($request->fd);
+        $sock = Socket::bySid($request->get['sid']);
+        if($sock)
+            io()->log()->info('hello...');
+        $sock?->request(ServerRequest::from($request))->fd($request->fd);
     }
 
     /**
      * @param Server $server
      * @param Frame $frame
      * @return void
-     * @throws InvalidPacketException
      */
     public function onMessage(Server $server, Frame $frame): void
     {
-        $packet = Packet::from($frame->data);
-        $io = $this->io;
-        $socket = Connection::byFd($frame->fd);
-        switch ($packet->getEngineType(true)) {
-            case 2:
-                $socket->emit(EioPacket::create('pong', $packet->getPayload()));
-                break;
-            case 4:
-                $io->receive($socket, $packet);
-        }
+        Socket::byFd($frame->fd)?->receive(Packet::from($frame->data));
     }
 
     public function onClose(Server $server, int $fd): void
     {
-        Connection::clean($fd);
+        $sock = Socket::byFd($fd);
+        if ($sock?->transport() == 'websocket') {
+            $sock->transport('polling');
+            io()->log()->info('bye!');
+        }
+//        io()->log()->info("closed on req $fd");
+//        Socket::clean($fd);
     }
 }

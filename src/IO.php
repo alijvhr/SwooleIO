@@ -48,11 +48,11 @@ class IO extends Singleton implements LoggerAwareInterface
         self::$serverID = substr(uuid(), -17);
         $this->logger = new FallbackLogger();
         $this->tables = new TableContainer([
-            'fd' => [['sid' => 'str'], 1e5],
-            'sid' => [['pid' => 'str', 'fd' => 'int', 'buffer' => 'text', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'str-s'], 1e5],
-//            'pid' => [['sid' => 'str'], 1e5],
+            'fd' => [['sid' => 'str'], 1e4],
+            'sid' => [['pid' => 'str', 'fd' => 'int', 'buffer' => 'text', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'str-s'], 1e4],
+            'pid' => [['sid' => 'str'], 1e4],
             'room' => [['cid' => 'list'], 1e4],
-            'cid' => [['conn' => 'phps'], 1e6],
+            'cid' => [['conn' => 'phps'], 5e4],
             'nsp' => [['cid' => 'list'], 1e3],
         ]);
     }

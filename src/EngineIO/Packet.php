@@ -76,13 +76,14 @@ class Packet implements \Iterator
         $this->order[] = $packet;
         return $this;
     }
+
     public static function from(string $packet): ?static
     {
         try {
             $object = new static($packet);
             $object->parse();
             return $object;
-        }catch (InvalidPacketException $e) {
+        } catch (InvalidPacketException $e) {
             return null;
         }
     }
@@ -126,11 +127,15 @@ class Packet implements \Iterator
 
     public function encode(bool $all = false): string
     {
-        if ($all)
+        if ($all) {
+            $payload = '';
             foreach ($this->order as $packet) {
-                $this->payload .= chr(30) . $packet->encode();
+                $payload .= chr(30) . $packet->encode();
             }
-        return "$this->engine_type$this->payload";
+            $payload = ltrim($payload, chr(30));
+        } else
+            $payload = "$this->engine_type$this->payload";
+        return $payload;
     }
 
     public function next(): void

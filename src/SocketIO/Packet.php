@@ -49,13 +49,13 @@ class Packet extends EngineIOPacket
         $object->engine_type = 4;
         $object->socket_type = $type_id;
         $object->namespace = '/';
-        if ($type_id == 2) {
+        if (in_array($type_id, [2, 5])) {
             $object->event = $data[0];
             $object->params = array_slice($data, 1);
             $object->data = $data;
         } else {
             $object->params = $data;
-            $object->data = $data;
+            $object->data = $data[0];
         }
 
         return $object;
@@ -108,17 +108,17 @@ class Packet extends EngineIOPacket
      */
     public function getData(): mixed
     {
-        return $this->data?? null;
+        return $this->data ?? null;
     }
 
     public function getParams(): array
     {
-        return $this->params?? [];
+        return $this->params ?? [];
     }
 
     public function getEvent(): string
     {
-        return $this->event?? '';
+        return $this->event ?? '';
     }
 
     public function __toString(): string
@@ -128,14 +128,16 @@ class Packet extends EngineIOPacket
 
     public function encode(bool $all = false): string
     {
-        $this->engine_type = 4;
-        $id = $this->id ?? 0;
-        $namespace = "$this->namespace,";
-        $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
-        if (in_array($this->socket_type, [2, 3, 5, 6]))
-            $this->payload = "$this->socket_type$namespace$id$data";
-        else
-            $this->payload = "$this->socket_type$data";
+        if (!$all) {
+            $this->engine_type = 4;
+            $id = $this->id ?? 0;
+            $namespace = "$this->namespace,";
+            $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
+            if (in_array($this->socket_type, [2, 3, 5, 6]))
+                $this->payload = "$this->socket_type$namespace$id$data";
+            else
+                $this->payload = "$this->socket_type$data";
+        }
         return parent::encode($all);
     }
 
@@ -147,7 +149,7 @@ class Packet extends EngineIOPacket
             $this->socket_type = +$parts[1];
             $this->binary_attachments = [];
             $this->binary_count = +(substr($parts[2], 0, -1) ?: 0);
-            $this->namespace = substr($parts[3], 0, -1);
+            $this->namespace = substr($parts[3], 0, -1) ?: '/';
             $this->id = $parts[4] ?: 0;
             $payload = json_decode($parts[5], true);
             $valid = false;
