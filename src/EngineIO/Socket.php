@@ -28,7 +28,7 @@ class Socket
     {
         if (isset(self::$Sockets[$sid]))
             return self::$Sockets[$sid];
-        return self::$Sockets[$sid] = io()->table('sid')->get($sid, 'conn');
+        return self::$Sockets[$sid] = io()->table('sid')->get($sid, 'sock');
     }
 
     public static function store(Socket $socket): Socket
@@ -45,13 +45,13 @@ class Socket
 
     public function sid(string $sid = null): string|Socket
     {
-        if (!isset($sid)) return $this;
+        if (!isset($sid)) return $this->sid;
         $io = io();
         $io->table('sid')->del($this->sid);
         $this->sid = $sid;
         $io->table('sid')->set($sid, ['pid' => $this->pid()]);
         $io->table('pid')->set($this->pid(), ['sid' => $sid]);
-        return $sid;
+        return $this;
     }
 
     public function pid(): ?string
@@ -61,13 +61,13 @@ class Socket
 
     public function fd(int $fd = null): int|Socket
     {
-        if (!isset($fd)) return $this;
+        if (!isset($fd)) return $this->fd;
         $io = io();
         $this->fd = $fd;
         $this->transport = 'websocket';
         $io->table('fd')->set($this->fd, ['pid' => $this->sid]);
         $io->table('sid')->set($this->sid, ['fd' => $this->fd, 'transport' => $this->transport]);
-        return $fd;
+        return $this;
     }
 
     public static function bySid(string $sid): ?Socket
@@ -83,6 +83,12 @@ class Socket
     public static function byFd(int $fd): ?Socket
     {
         return self::recover(io()->table('fd')->get($fd, 'sid'));
+    }
+
+    public function save(): self
+    {
+        io()->table('sid')->set($this->sid, ['sock' => $this]);
+        return $this;
     }
 
     public function push(Packet $packet): bool
