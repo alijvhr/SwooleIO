@@ -182,15 +182,16 @@ class Table implements \Iterator, \Countable
      * @param string $key
      * @param string $column
      * @param int|string $value
+     * @param string|int|null $name
      * @return int|string
      * @throws WrongTypeColumn
      */
-    public function push(string $key, string $column, int|string $value): int|string
+    public function push(string $key, string $column, int|string $value, string|int $name = null): int|string
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'list' => ["$data|$value", substr_count($data, '|') + 1, $value],
             'arr', 'arr-2', 'arr-4' => [$data . $this->castFrom([$value], $type), strlen($data) / $size + 1, $value],
-            'json', 'phps' => $this->push_json($data, $value),
+            'json', 'phps' => $this->push_json($data, $value, $name),
         })[1];
     }
 
@@ -211,6 +212,15 @@ class Table implements \Iterator, \Countable
         [$data, $count, $item] = $func($data, $size, $type);
         $this->table->set($key, [$column => $data]);
         return [$data, $count, $type, $item];
+    }
+
+    #[ArrayShape(['string', 'string', 'int'])]
+    protected function push_json(string $data, int|string $item, int|string $name = null): array
+    {
+        $data = $this->castTo($data, 'json');
+        if (!isset($name)) $data[] = $item;
+        else $data[$name] = $item;
+        return [$this->castFrom($data, 'json'), count($data), $item];
     }
 
     /**
@@ -241,6 +251,14 @@ class Table implements \Iterator, \Countable
             'arr', 'arr-2', 'arr-4' => [substr($data, 0, -$size), strlen($data) / $size - 1, substr($data, -$size)],
             'json', 'list' => $this->pop_json($data),
         })[3];
+    }
+
+    #[ArrayShape(['string', 'string', 'int'])]
+    protected function pop_json($data): array
+    {
+        $data = $this->castTo($data, 'json');
+        $item = array_pop($data);
+        return [$this->castFrom($data, 'json'), count($data), $item];
     }
 
     public function exists(string $key): bool
@@ -303,21 +321,5 @@ class Table implements \Iterator, \Countable
     {
         $item = substr($data, strrpos($data, '|') + 1);
         return [substr($data, 0, -strlen($item)), substr_count($data, '|') - 1, $item];
-    }
-
-    #[ArrayShape(['string', 'string', 'int'])]
-    protected function pop_json($data): array
-    {
-        $data = $this->castTo($data, 'json');
-        $item = array_pop($data);
-        return [$this->castFrom($data, 'json'), count($data), $item];
-    }
-
-    #[ArrayShape(['string', 'string', 'int'])]
-    protected function push_json(string $data, string $item): array
-    {
-        $data = $this->castTo($data, 'json');
-        $data[] = $item;
-        return [$this->castFrom($data, 'json'), count($data), $item];
     }
 }
