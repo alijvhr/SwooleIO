@@ -3,6 +3,8 @@
 namespace SwooleIO\EngineIO;
 
 use Psr\Http\Message\ServerRequestInterface;
+use SwooleIO\Constants\SocketStatus;
+use SwooleIO\Constants\Transport;
 use SwooleIO\SocketIO\Connection;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use function SwooleIO\io;
@@ -11,14 +13,22 @@ class Socket
 {
 
     /** @var Socket[] */
-    protected static array $Sockets;
+    protected static array $Sockets = [];
     protected ServerRequestInterface $request;
 
     protected int $fd = 0;
-    protected string $transport = 'polling';
+    protected Transport $transport = Transport::polling;
+    protected string $buffer = '';
+
+    /** @var Connection[] */
+    protected array $connections = [];
+    protected string $pid;
+    protected SocketStatus $status = SocketStatus::disconnected;
+    protected ?Transport $upgrade;
 
     public function __construct(protected string $sid)
     {
+        $this->pid = $this->sid;
     }
 
     public static function bySid(string $sid): ?Socket
@@ -30,7 +40,14 @@ class Socket
     {
         if (isset(self::$Sockets[$sid]))
             return self::$Sockets[$sid];
-        return self::$Sockets[$sid] = io()->table('sid')->get($sid, 'sock');
+        $socket = self::fetch($sid);
+        if (isset($socket)) self::$Sockets[$sid] = $socket;
+        return $socket;
+    }
+
+    public static function fetch(string $sid): ?self
+    {
+        return io()->table('sid')->get($sid, 'sock');
     }
 
     public static function byPid(string $pid): ?Socket
@@ -43,128 +60,167 @@ class Socket
         return self::recover(io()->table('fd')->get($fd, 'sid') ?? '');
     }
 
-    public function sid(string $sid = null): string|Socket
+    public static function connect(string $sid): Socket
     {
-        if (!isset($sid)) return $this->sid;
+        return self::recover($sid) ?? self::create($sid);
+    }
+
+    public static function create(string $sid, Transport $transport = Transport::polling): Socket
+    {
+        $socket = new Socket($sid);
+        $socket->status = SocketStatus::connected;
+        if (isset($transport)) $socket->transport($transport)->save();
+        return $socket;
+    }
+
+    public function save(bool $socket = false): self
+    {
         $io = io();
-        $io->table('sid')->del($this->sid);
-        $this->sid = $sid;
-        $io->table('sid')->set($sid, ['pid' => $this->pid()]);
-        $io->table('pid')->set($this->pid(), ['sid' => $sid]);
+        $worker = $io->server()->getWorkerId();
+        $save = ['transport' => $this->transport->value, 'worker' => $worker];
+        $sid = ['sid' => $this->sid, 'worker' => $worker];
+        if ($this->fd)
+            $io->table('fd')->set($this->fd, $sid);
+        if ($socket) $save['sock'] = $this;
+        $io->table('sid')->set($this->sid, $save);
+        $io->table('pid')->set($this->pid, $sid);
         return $this;
     }
 
-    public function pid(): ?string
+    public function transport(Transport $transport = null): Transport|Socket
     {
-        return $this->sid;
+        if (!isset($transport)) return $this->transport;
+        if ($transport != $this->transport)
+            $this->transport = $transport;
+        return $this;
+    }
+
+    public static function saveAll(): void
+    {
+        foreach (self::$Sockets as $socket)
+            $socket->save();
+    }
+
+    public function is(SocketStatus $status): bool
+    {
+        return $status == $this->status;
+    }
+
+    public function status(): SocketStatus
+    {
+        return $this->status;
+    }
+
+    public function sid(string $sid = null): string|Socket
+    {
+        if (!isset($sid)) return $this->sid;
+        if ($sid != $this->sid) {
+            io()->table('sid')->del($this->sid);
+            $this->sid = $sid;
+            $this->save();
+        }
+        return $this;
     }
 
     public function request(ServerRequestInterface $request = null): ServerRequestInterface|Socket
     {
         if (!isset($request)) return $this->request;
         $this->request = $request;
-        $this->save();
-        return $this;
-    }
-
-    public function save(): self
-    {
-        io()->table('sid')->set($this->sid, ['sock' => $this]);
         return $this;
     }
 
     public function receive(SioPacket $packet): void
     {
+        $io = io();
+        $server = $io->server();
+        $io->log()->info("on worker " . $server->getWorkerId());
         switch ($packet->getEngineType(1)) {
             case 1:
+                $this->status = SocketStatus::closing;
                 $this->disconnect();
+                $this->status = SocketStatus::closed;
                 break;
             case 2:
-                $this->push(Packet::create('pong', $packet->getPayload()));
+                $payload = $packet->getPayload();
+                $packet = Packet::create('pong', $payload);
+                if ($this->status == SocketStatus::connected && $payload == 'probe') {
+                    $this->upgrading(Transport::websocket);
+                    if ($this->upgrade == Transport::websocket)
+                        $server->push($this->fd, $packet->encode());
+                } else
+                    $this->push($packet);
                 break;
             case 4:
-                Connection::connect($this->sid, $packet->getNamespace())->receive($packet);
+                $nsp = $packet->getNamespace();
+                ($this->connections[$nsp] ?? Connection::create($this, $nsp))->receive($packet);
                 break;
             case 5:
-                $this->transport('websocket');
+                $this->transport($this->upgrade);
+                $this->upgrade = null;
+                $this->status = SocketStatus::upgraded;
                 break;
         }
     }
 
     public function disconnect(): bool
     {
-        self::clean($this->fd);
+        foreach ($this->connections as $connection)
+            $connection->close();
+        unset(self::$Sockets[$this->fd]);
         return io()->server()->disconnect($this->fd);
     }
 
-    public static function clean(int $fd): void
+    public function close(string $namespace): void
     {
-        unset(self::$Sockets[$fd]);
+        unset($this->connections[$namespace]);
+    }
+
+    public function upgrading(Transport $transport): self
+    {
+        $this->upgrade = $transport;
+        $this->status = SocketStatus::upgrading;
+        return $this;
     }
 
     public function push(Packet $packet): bool
     {
-        $io = io();
-        $server = $io->server();
+        $server = io()->server();
         $payload = $packet->encode(true);
         if ($this->isConnected() && $server->push($this->fd, $payload)) return true;
-        $io->table('sid')->append($this->sid, 'buffer', chr(30) . $payload);
+        if ($this->buffer) $this->buffer .= chr(30);
+        $this->buffer .= $payload;
         return false;
     }
 
     public function isConnected(): bool
     {
         $io = io();
-        if ($this->fd() && $io->server()->isEstablished($this->fd))
+        if ($this->status == SocketStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
             return true;
-        $this->transport = 'polling';
-        $io->table('fd')->del($this->fd);
-        $io->table('sid')->set($this->sid, ['fd' => 0, 'transport' => $this->transport]);
         return false;
     }
 
     public function fd(int $fd = null): int|Socket
     {
         $io = io();
-        if (!isset($fd)) return $this->transport != 'polling' ? $this->fd : $this->fd = $io->table('sid')->get($this->sid, 'fd');
-        $this->fd = $fd;
-        $io->table('fd')->set($this->fd, ['sid' => $this->sid]);
-        $io->table('sid')->set($this->sid, ['fd' => $this->fd]);
-        return $this;
-    }
-
-    public static function create(string $sid): Socket
-    {
-        $socket = new Socket($sid);
-        $io = io();
-        $pid = $socket->pid();
-        $io->table('sid')->set($sid, ['fd' => 0, 'pid' => $pid, 'buffer' => '', 'cid' => [], 'transport' => $socket->transport, 'sock' => $socket]);
-        $io->table('pid')->set($pid, ['sid' => $sid]);
-        return self::$Sockets[$sid] = $socket;
-    }
-
-    public static function connect(string $sid): Socket
-    {
-        return self::recover($sid) ?? self::create($sid);
-    }
-
-    public function transport(string $transport = null): string|Socket
-    {
-        $io = io();
-        if (!isset($transport)) return $this->transport = $io->table('sid')->get($this->sid, 'transport');
-        $this->transport = $transport;
-        if ($transport == 'polling') {
-            $set = ['fd' => 0, 'transport' => $transport];
+        if (!isset($fd)) return $this->fd;
+        if ($fd != $this->fd) {
             $io->table('fd')->del($this->fd);
-        } else $set = ['transport' => $transport];
-        $io->table('sid')->set($this->sid, $set);
+            $this->fd = $fd;
+            $io->table('fd')->set($this->fd, ['sid' => $this->sid, 'worker' => $io->server()->getWorkerId()]);
+        }
         return $this;
+    }
+
+    public function pid(): string
+    {
+        return $this->pid;
     }
 
     public function drain(): string
     {
-        $data = ltrim(io()->table('sid')->get($this->sid, 'buffer'), chr(30));
-        io()->table('sid')->set($this->sid, ['buffer' => '']);
+        $data = $this->buffer;
+        $this->buffer = '';
         return $data;
     }
 

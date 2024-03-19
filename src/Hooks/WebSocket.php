@@ -6,11 +6,11 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
+use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Socket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
-use function SwooleIO\io;
 
 class WebSocket extends Hook
 {
@@ -31,10 +31,7 @@ class WebSocket extends Hook
 
     public function onOpen(Server $server, Request $request): void
     {
-        $sock = Socket::bySid($request->get['sid']);
-        if($sock)
-            io()->log()->info('hello...');
-        $sock?->request(ServerRequest::from($request))->fd($request->fd);
+        Socket::recover($request->get['sid'])?->request(ServerRequest::from($request))->fd($request->fd);
     }
 
     /**
@@ -50,11 +47,8 @@ class WebSocket extends Hook
     public function onClose(Server $server, int $fd): void
     {
         $sock = Socket::byFd($fd);
-        if ($sock?->transport() == 'websocket') {
-            $sock->transport('polling');
-            io()->log()->info('bye!');
+        if ($sock?->transport() == Transport::websocket) {
+            $sock->transport(Transport::polling);
         }
-//        io()->log()->info("closed on req $fd");
-//        Socket::clean($fd);
     }
 }
