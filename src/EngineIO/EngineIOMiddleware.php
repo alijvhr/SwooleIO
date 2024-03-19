@@ -48,7 +48,7 @@ class EngineIOMiddleware implements MiddlewareInterface
                 }
             } else {
                 Socket::create($sid = $io->generateSid())->save(true);
-                $response = new Response(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($io->getTransports(), 1), "pingInterval" => 10000, "pingTimeout" => 5000])->encode());
+                $response = new Response(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($io->getTransports(), 1), "pingInterval" => Socket::$pingInterval, "pingTimeout" => Socket::$pingTimeout])->encode());
             }
             /** @var ResponseInterface */
             return $response->withHeader('sid', $sid);

@@ -25,6 +25,8 @@ class Socket
     protected string $pid;
     protected SocketStatus $status = SocketStatus::disconnected;
     protected ?Transport $upgrade;
+    public static int $pingTimeout;
+    public static int $pingInterval;
 
     public function __construct(protected string $sid)
     {
@@ -133,7 +135,6 @@ class Socket
     {
         $io = io();
         $server = $io->server();
-        $io->log()->info("on worker " . $server->getWorkerId());
         switch ($packet->getEngineType(1)) {
             case 1:
                 $this->status = SocketStatus::closing;
