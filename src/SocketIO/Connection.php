@@ -20,81 +20,24 @@ class Connection
         "newListener",
         "removeListener",
     ];
-
-    /** @var Connection[] */
-    private static array $connections;
     protected string $cid;
     protected array $rooms = [];
     protected object $hook;
 
-    public function __construct(protected string $sid, protected string $nsp)
+    public function __construct(protected Socket $socket, protected string $nsp)
     {
         $this->cid = io()->generateSid();
+        io()->table('cid')->set($this->cid(), ['sid' => $this->socket->sid()]);
     }
 
-    public static function connect(string $sid, string $namespace): Connection
+    public static function connect(Socket $socket, string $namespace): Connection
     {
-        return self::recover($sid, $namespace) ?? self::create($sid, $namespace);
+        return self::create($socket, $namespace);
     }
 
-    public static function recover(string $sid, string $namespace): ?Connection
+    public static function create(Socket $socket, string $namespace): Connection
     {
-        if (isset(self::$connections["$sid-$namespace"]))
-            return self::$connections["$sid-$namespace"];
-        $io = io();
-        $session = $io->table('sid')->get($sid, 'cid')[$namespace] ?? null;
-        if ($session)
-            return $io->table('cid')->get($session['cid'][$namespace], 'conn');
-        return null;
-    }
-
-    public static function create(string $sid, string $namespace): Connection
-    {
-        $connection = new Connection($sid, $namespace);
-        $io = io();
-        $sid = $connection->sid;
-        $cid = $connection->cid;
-        $nsp = $namespace;
-        $io->table('sid')->push($sid, 'cid', $cid, $nsp);
-        $io->table('cid')->set($cid, ['conn' => $connection]);
-        $io->table('nsp')->push($nsp, 'cid', $cid);
-        return self::$connections[$sid][$nsp] = $connection;
-    }
-
-    public static function bySid(string $sid, string $namespace): ?Connection
-    {
-        return self::recover($sid, $namespace);
-    }
-
-    public static function byPid(string $pid, string $namespace): ?Connection
-    {
-        $sid = io()->table('pid')->get($pid, 'sid') ?? '';
-        return self::recover($sid, $namespace);
-    }
-
-    public static function byFd(int $fd, string $namespace): ?Connection
-    {
-        $sid = io()->table('fd')->get($fd, 'sid') ?? '';
-        return self::recover($sid, $namespace);
-    }
-
-    public function save(): Connection
-    {
-        io()->table('cid')->set($this->cid, ['conn' => $this]);
-        return $this;
-    }
-
-    public function sid(string $sid = null): string|Connection
-    {
-        if (!isset($sid)) return $this->sid;
-        $this->sock()->sid($sid);
-        $this->sid = $sid;
-        return $this->sid;
-    }
-
-    public function sock(): Socket
-    {
-        return Socket::recover($this->sid);
+        return new Connection($socket, $namespace);
     }
 
     public function hook(object $listener): self
@@ -103,24 +46,9 @@ class Connection
         return $this;
     }
 
-    public function pid(): ?string
-    {
-        return $this->sid;
-    }
-
-    public function transport(): string
-    {
-        return $this->sock()->transport();
-    }
-
     public function cid(): string
     {
         return $this->cid;
-    }
-
-    public function request(): ServerRequestInterface
-    {
-        return $this->sock()->request();
     }
 
     public function write(mixed ...$data): bool
@@ -137,22 +65,12 @@ class Connection
     {
         if (in_array($event, self::reserved_events)) return false;
         $packet = Packet::create('event', $event, ...$data);
-        return $this->sock()->push($packet);
+        return $this->socket->push($packet);
     }
 
     public function close(): void
     {
-//        $io = io();
-//        $io->table('cid')->del($this->cid);
-//        $io->table('nsp')->remove($this->nsp, 'cid', $this->cid);
-//        $io->table('sid')->remove($this->sid, 'cid', $this->cid);
-        unset(self::$connections[$this->fd()][$this->nsp()]);
-//        return $this->sock()->disconnect();
-    }
-
-    public function fd(): int
-    {
-        return $this->sock()->fd();
+        $this->socket->close($this->nsp);
     }
 
     public function nsp(): string
@@ -176,7 +94,12 @@ class Connection
     {
         if (!in_array($event, self::reserved_events)) return false;
         $packet = Packet::create($event, $data);
-        return $this->sock()->push($packet);
+        return $this->socket->push($packet);
+    }
+
+    public function socket(): Socket
+    {
+        return $this->socket;
     }
 
 }
