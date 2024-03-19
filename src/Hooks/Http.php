@@ -31,8 +31,4 @@ class Http extends Hook
         ServerResponse::emit($response, $serverResponse);
     }
 
-    public function onClose(Server $server, int $fd): void
-    {
-
-    }
 }
