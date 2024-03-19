@@ -11,6 +11,14 @@ class Event implements StoppableEventInterface
      */
     private bool $propagationStopped = false;
 
+    public static function with(array $data): static
+    {
+        $event = new static();
+        foreach ($data as $key => $value)
+            $event->$key = $value;
+        return $event;
+    }
+
     /**
      * Is propagation stopped?
      *
