@@ -45,15 +45,6 @@ class Nsp
         return $this;
     }
 
-    public function on(string $event, callable $callback): self
-    {
-        if (isset($this->listeners[$event]))
-            $this->listeners[$event][] = $callback;
-        else
-            $this->listeners[$event] = [$callback];
-        return $this;
-    }
-
     public function in($room): BroadcastOperator
     {
         return (new BroadcastOperator($this))->to($room);
@@ -129,12 +120,7 @@ class Nsp
         (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    public function receive(Connection $socket, Packet $packet): void
-    {
-        io()->server()->defer(fn() => $this->dispatch($socket, $packet));
-    }
-
-    private function dispatch(Connection $socket, Packet $packet): void
+    private function _receive(Connection $socket, Packet $packet): void
     {
         $io = io();
         switch ($packet->getSocketType(true)) {
@@ -144,9 +130,11 @@ class Nsp
             case 2:
                 $io->of($packet->getNamespace())->receive($socket, $packet);
         }
-        $listeners = $this->listeners[$packet->getEvent()] ?? [];
-        foreach ($listeners as $listener)
-            $listener($socket, $packet);
+    }
+
+    public function receive(Connection $socket, Packet $packet): void
+    {
+        go([$this, '_receive'], $socket, $packet);
     }
 
     private function run($socket, $fn)

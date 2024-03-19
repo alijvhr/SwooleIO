@@ -80,12 +80,16 @@ class Connection
 
     public function receive(Packet $packet): void
     {
+        $ev = new Event($this, $packet);
         switch ($packet->getSocketType(1)) {
             case 0:
                 $this->emitReserved('connect', ['sid' => $this->cid]);
+                $ev->type = 'connection';
+                io()->of($this->nsp)->dispatch($ev);
+                $ev->type = 'connect';
             case 2:
             case 5:
-                $this->dispatch(new Event($this, $packet));
+                $this->dispatch($ev);
 
         }
     }
