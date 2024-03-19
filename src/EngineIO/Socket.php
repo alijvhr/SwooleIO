@@ -152,7 +152,10 @@ class Socket
                 break;
             case 4:
                 $nsp = $packet->getNamespace();
-                ($this->connections[$nsp] ?? Connection::create($this, $nsp))->receive($packet);
+                $connection = &$this->connections[$nsp];
+                if (!isset($connection))
+                    $connection = Connection::create($this, $nsp);
+                $connection->receive($packet);
                 break;
             case 5:
                 $this->transport($this->upgrade);
