@@ -10,20 +10,17 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
-use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\Exceptions\DuplicateTableNameException;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
 use SwooleIO\Lib\PassiveProcess;
 use SwooleIO\Lib\Singleton;
-use SwooleIO\Memory\DuplicateTableNameException;
 use SwooleIO\Memory\Table;
 use SwooleIO\Memory\TableContainer;
 use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Logger\FallbackLogger;
 use SwooleIO\SocketIO\Nsp;
-use SwooleIO\SocketIO\Packet;
-use SwooleIO\SocketIO\Connection;
 
 class IO extends Singleton implements LoggerAwareInterface
 {
@@ -31,6 +28,7 @@ class IO extends Singleton implements LoggerAwareInterface
     use LoggerAwareTrait;
 
     protected static string $serverID;
+    protected static int $cpus;
 
     protected WebsocketServer $server;
     protected TableContainer $tables;
@@ -46,10 +44,11 @@ class IO extends Singleton implements LoggerAwareInterface
     public function init(): void
     {
         self::$serverID = substr(uuid(), -17);
+        self::$cpus = Util::getCPUNum();
         $this->logger = new FallbackLogger();
         $this->tables = new TableContainer([
-            'fd' => [['sid' => 'str'], 1e4],
-            'sid' => [['pid' => 'str', 'fd' => 'int', 'buffer' => 'text', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'str-s'], 1e4],
+            'fd' => [['sid' => 'str', 'worker' => 'int'], 1e4],
+            'sid' => [['pid' => 'str', 'fd' => 'int', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'int', 'worker' => 'int'], 1e4],
             'pid' => [['sid' => 'str'], 1e4],
             'room' => [['cid' => 'list'], 1e4],
             'cid' => [['conn' => 'phps'], 5e4],
@@ -68,11 +67,6 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this;
     }
 
-    public function table(string $name): ?Table
-    {
-        return $this->tables->get($name);
-    }
-
     public function server(): WebsocketServer
     {
         return $this->server;
@@ -83,12 +77,39 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->path;
     }
 
+    public function dispatch_func(Server $server, int $fd, int $type, string $data = null): int
+    {
+        $base = $fd % self::$cpus;
+        if (!in_array($type, [0, 4, 5])) return $base;
+        if ($worker = $this->table('fd')->get($fd, 'worker'))
+            return $worker;
+        if (preg_match('/[?&]sid=([^&\s]++)/i', $data ?? '', $match))
+            $worker = $this->table('sid')->get($match[1], 'worker');
+        return $worker ?? $base;
+    }
+
+    public function table(string $name): ?Table
+    {
+        return $this->tables->get($name);
+    }
+
     public function start(string $path = '/socket.io'): bool
     {
         $this->path = $path;
         [$host, $port, $sockType] = reset($this->endpoints) ?? $this->endpoints[] = ['0.0.0.0', 80, Constant::SOCK_TCP];
         $this->server = $server = new WebsocketServer($host, $port, Server::POOL_MODE, $sockType);
-        $server->set(['task_worker_num' => Util::getCPUNum(), 'task_enable_coroutine' => true, 'enable_coroutine' => true, 'send_yield' => true, 'websocket_compression' => true]);
+        $server->set([
+            'task_worker_num' => self::$cpus,
+            'worker_num' => self::$cpus,
+            'dispatch_func' => [$this, 'dispatch_func'],
+            'open_http_protocol' => true,
+            'open_http2_protocol' => true,
+            'open_websocket_protocol' => true,
+            'task_enable_coroutine' => true,
+            'enable_coroutine' => true,
+            'send_yield' => true,
+            'websocket_compression' => true
+        ]);
         foreach ($this->endpoints as $endpoint)
             $this->server->addlistener(...$endpoint);
         $this->defaultHooks($server);
@@ -119,17 +140,6 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         $this->endpoints[] = [$host, $port, $sockType];
         return $this;
-    }
-
-    public function receive(Connection $socket, Packet $packet): void
-    {
-        switch ($packet->getEngineType(true)) {
-            case 2:
-                $socket->emit(EioPacket::create('pong', $packet->getPayload()));
-                break;
-            case 4:
-                $this->of($packet->getNamespace())->receive($socket, $packet);
-        }
     }
 
     public function of(string $namespace): Nsp
