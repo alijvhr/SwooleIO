@@ -8,6 +8,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SwooleIO\Constants\SocketStatus;
+use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\SocketIO\Packet;
 use function SwooleIO\io;
@@ -21,7 +23,7 @@ class EngineIOMiddleware implements MiddlewareInterface
         $method = $request->getMethod();
         $path = $io->path();
         if (str_starts_with($uri, $path)) {
-            if ($sid = $request->getQueryParam('sid')) {
+            if ($request->getQueryParam('transport') == 'polling' && $sid = $request->getQueryParam('sid')) {
                 $socket = Socket::recover($sid);
                 if (!isset($socket)) $response = new Response('Required parameter missing', 400);
                 elseif ($method == 'POST') {
@@ -30,12 +32,12 @@ class EngineIOMiddleware implements MiddlewareInterface
                 } else {
                     $timeout = time() + 5;
                     while (time() < $timeout) {
-                        $isPolling = $socket->transport() == 'polling';
+                        $isPolling = $socket->transport() == Transport::polling;
                         $buffer = $socket->drain();
                         if ($isPolling && $buffer) {
                             $response = new Response($buffer);
                             break;
-                        } elseif (!$isPolling || $socket->fd()) {
+                        } elseif (!$isPolling || $socket->is(SocketStatus::upgrading)) {
                             $response = new Response(EioPacket::create('noop')->encode());
                             break;
                         } else
@@ -45,7 +47,7 @@ class EngineIOMiddleware implements MiddlewareInterface
                         $response = new Response('2');
                 }
             } else {
-                Socket::create($sid = $io->generateSid());
+                Socket::create($sid = $io->generateSid())->save(true);
                 $response = new Response(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($io->getTransports(), 1), "pingInterval" => 10000, "pingTimeout" => 5000])->encode());
             }
             /** @var ResponseInterface */
