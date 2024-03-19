@@ -2,6 +2,8 @@
 
 namespace SwooleIO\Memory;
 
+use SwooleIO\Exceptions\DuplicateTableNameException;
+
 class TableContainer implements \Iterator, \Countable
 {
 

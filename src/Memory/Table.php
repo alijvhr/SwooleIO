@@ -4,6 +4,7 @@ namespace SwooleIO\Memory;
 
 use JetBrains\PhpStorm\ArrayShape;
 use OpenSwoole\Table as sTable;
+use SwooleIO\Exceptions\TableWrongTypeColumn;
 
 class Table implements \Iterator, \Countable
 {
@@ -184,7 +185,7 @@ class Table implements \Iterator, \Countable
      * @param int|string $value
      * @param string|int|null $name
      * @return int|string
-     * @throws WrongTypeColumn
+     * @throws TableWrongTypeColumn
      */
     public function push(string $key, string $column, int|string $value, string|int $name = null): int|string
     {
@@ -200,13 +201,13 @@ class Table implements \Iterator, \Countable
      * @param string $column
      * @param callable $func
      * @return array
-     * @throws WrongTypeColumn
+     * @throws TableWrongTypeColumn
      */
     #[ArrayShape(['string', 'int', 'string', 'string'])]
     protected function update(string $key, string $column, callable $func): array
     {
         $type = $this->columns[$column];
-        if (!preg_match('/^(arr|list|json|phps)/', $type)) throw new WrongTypeColumn();
+        if (!preg_match('/^(arr|list|json|phps)/', $type)) throw new TableWrongTypeColumn();
         $size = $this->castSize($type);
         $data = $this->rawCol($key, $column);
         [$data, $count, $item] = $func($data, $size, $type);
@@ -228,12 +229,12 @@ class Table implements \Iterator, \Countable
      * @param string $column
      * @param string $value
      * @return string
-     * @throws WrongTypeColumn
+     * @throws TableWrongTypeColumn
      */
     public function append(string $key, string $column, string $value): string
     {
         $type = $this->columns[$column];
-        if (!preg_match('/^(str|text)/', $type)) throw new WrongTypeColumn();
+        if (!preg_match('/^(str|text)/', $type)) throw new TableWrongTypeColumn();
         $data = $this->rawCol($key, $column) . $value;
         $this->table->set($key, [$column => $data]);
         return $data;
@@ -243,7 +244,7 @@ class Table implements \Iterator, \Countable
      * @param string $key
      * @param string $column
      * @return int|string
-     * @throws WrongTypeColumn
+     * @throws TableWrongTypeColumn
      */
     public function pop(string $key, string $column): int|string
     {
@@ -265,7 +266,7 @@ class Table implements \Iterator, \Countable
      * @param string $key
      * @param string $column
      * @return int|string
-     * @throws WrongTypeColumn
+     * @throws TableWrongTypeColumn
      */
     public function remove(string $key, string $column, int|string $value): int|string
     {

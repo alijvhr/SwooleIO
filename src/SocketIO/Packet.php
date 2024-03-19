@@ -2,8 +2,8 @@
 
 namespace SwooleIO\SocketIO;
 
-use SwooleIO\EngineIO\InvalidPacketException;
 use SwooleIO\EngineIO\Packet as EngineIOPacket;
+use SwooleIO\Exceptions\InvalidPacketException;
 
 /**
  * Class Packet

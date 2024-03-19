@@ -2,6 +2,8 @@
 
 namespace SwooleIO\EngineIO;
 
+use SwooleIO\Exceptions\InvalidPacketException;
+
 class Packet implements \Iterator
 {
 
@@ -128,11 +130,10 @@ class Packet implements \Iterator
     public function encode(bool $all = false): string
     {
         if ($all) {
-            $payload = '';
-            foreach ($this->order as $packet) {
-                $payload .= chr(30) . $packet->encode();
-            }
-            $payload = ltrim($payload, chr(30));
+//            $encoded = [];
+//            foreach ($this->order as $packet)
+//                $encoded[] = $packet->encode();
+            $payload = implode(chr(30), $this->order);
         } else
             $payload = "$this->engine_type$this->payload";
         return $payload;

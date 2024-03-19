@@ -2,6 +2,7 @@
 
 namespace SwooleIO\Process;
 
+use SwooleIO\EngineIO\Socket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Process;
 
@@ -15,8 +16,8 @@ class Worker extends Process
         $io->log()->info("$type #$this->workerID started");
     }
 
-    public function exit()
+    public function exit(): void
     {
-        // TODO: Implement exit() method.
+        Socket::saveAll();
     }
 }
