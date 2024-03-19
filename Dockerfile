@@ -4,8 +4,6 @@ WORKDIR /var/www/swooleio
 
 COPY composer.json .
 
-COPY openswoole .
-
 RUN composer update
 
 COPY . .
