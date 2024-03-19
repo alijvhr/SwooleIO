@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\Memory;
+namespace SwooleIO\Exceptions;
 
 class DuplicateTableNameException extends \Exception
 {

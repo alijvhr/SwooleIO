@@ -1,6 +1,6 @@
 <?php
 
-namespace SwooleIO\EngineIO;
+namespace SwooleIO\Exceptions;
 
 class InvalidPacketException extends \Exception
 {
