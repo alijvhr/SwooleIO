@@ -7,7 +7,7 @@ use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
 use SwooleIO\Constants\Transport;
-use SwooleIO\EngineIO\Socket;
+use SwooleIO\EngineIO\Connection;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
@@ -31,7 +31,7 @@ class WebSocket extends Hook
 
     public function onOpen(Server $server, Request $request): void
     {
-        Socket::recover($request->get['sid'])?->request(ServerRequest::from($request))->fd($request->fd);
+        Connection::recover($request->get['sid'])?->request(ServerRequest::from($request))->fd($request->fd);
     }
 
     /**
@@ -41,12 +41,12 @@ class WebSocket extends Hook
      */
     public function onMessage(Server $server, Frame $frame): void
     {
-        Socket::byFd($frame->fd)?->receive(Packet::from($frame->data));
+        Connection::byFd($frame->fd)?->receive(Packet::from($frame->data));
     }
 
     public function onClose(Server $server, int $fd): void
     {
-        $sock = Socket::byFd($fd);
+        $sock = Connection::byFd($fd);
         if ($sock?->transport() == Transport::websocket) {
             $sock->transport(Transport::polling);
         }

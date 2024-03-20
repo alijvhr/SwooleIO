@@ -7,10 +7,10 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Server;
-use SwooleIO\Constants\SocketStatus;
+use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Packet as EioPacket;
-use SwooleIO\EngineIO\Socket;
+use SwooleIO\EngineIO\Connection;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\Handler\NotFoundHandler;
@@ -44,13 +44,13 @@ class Http extends Hook
     {
         $sid = &$request->get['sid'];
         if ($request->get['transport'] == 'polling' && $sid) {
-            $socket = Socket::recover($sid);
+            $socket = Connection::recover($sid);
             if (isset($socket)) {
                 if ($request->getMethod() == 'POST') {
                     $socket->receive(Packet::from($request->getContent()));
                     return $response->write('ok');
                 } else {
-                    if ($socket->transport() != Transport::polling || $socket->is(SocketStatus::upgrading, SocketStatus::upgraded))
+                    if ($socket->transport() != Transport::polling || $socket->is(ConnectionStatus::upgrading, ConnectionStatus::upgraded))
                         return $response->write(EioPacket::create('noop')->encode());
                     else {
                         $socket->writable = $response->fd;
@@ -62,8 +62,8 @@ class Http extends Hook
                 return $response->status(403, 'Permission denied');
 
         } else {
-            Socket::create($sid = $this->io->generateSid())->save(true);
-            return $response->write(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Socket::$pingInterval, "pingTimeout" => Socket::$pingTimeout])->encode());
+            Connection::create($sid = $this->io->generateSid())->save(true);
+            return $response->write(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Connection::$pingInterval, "pingTimeout" => Connection::$pingTimeout])->encode());
         }
     }
 

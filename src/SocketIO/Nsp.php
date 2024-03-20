@@ -2,8 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
-use Psr\Http\Server\RequestHandlerInterface;
-use SwooleIO\EngineIO\Adapter;
+use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
 
@@ -13,12 +12,10 @@ class Nsp
 
     protected static array $routes = [];
     public string $path;
-    public Adapter $adapter;
-    protected array $middlewares = [];
     /**
-     * @var callable[][]
+     * @var callable[]
      */
-    protected array $listeners = [];
+    protected array $middlewares = [];
 
     final private function __construct(string $name)
     {
@@ -39,7 +36,7 @@ class Nsp
         return self::$routes[$name];
     }
 
-    public function use(RequestHandlerInterface $middleware): self
+    public function use(callable $middleware): self
     {
         $this->middlewares[] = $middleware;
         return $this;
@@ -120,37 +117,25 @@ class Nsp
         (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
-    private function _receive(Connection $socket, Packet $packet): void
+    public function receive(Socket $socket, Packet $packet): void
     {
-        $io = io();
-        switch ($packet->getSocketType(true)) {
-            case 0:
-                $socket->push(Packet::create('connect', ['sid' => $io->generateSid()]));
-                break;
-            case 2:
-                $io->of($packet->getNamespace())->receive($socket, $packet);
-        }
+        go(function () use ($socket, $packet) {
+            if ($packet->getSocketType(true) == 0) {
+                try {
+                    $this->run($socket);
+                    $socket->emitReserved('connect', ['sid' => io()->generateSid()]);
+                }catch (ConnectionError $e){
+                    $socket->emitReserved('connect', ['sid' => ]);
+                }
+            }
+        });
     }
 
-    public function receive(Connection $socket, Packet $packet): void
+    private function run(Socket $socket)
     {
-        go([$this, '_receive'], $socket, $packet);
-    }
-
-    private function run($socket, $fn)
-    {
-        $fns = $this->middlewares;
-        if (empty($fns)) return $fn(null);
-
-        $run = function ($i) use ($socket, $fns, &$run, $fn) {
-            $fns[$i]($socket, function ($err) use ($i, $run, $socket, $fns, $fn) {
-                if ($err) return $fn($err);
-                if (!isset($fns[$i + 1])) return $fn(null);
-                $run($i + 1);
-            });
-        };
-
-        return $run(0);
+        $fns = array_reverse($this->middlewares);
+        $next = fn($i) => $fns[$i]($socket, $fns[$i + 1]);
+        return (fn($i)=> $fns[$i]($socket, $next($i + 1)))(0);
     }
 
     private function _createSocket($client, $auth)

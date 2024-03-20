@@ -1,7 +1,7 @@
 <?php
 
 namespace SwooleIO\Constants;
-enum SocketStatus
+enum ConnectionStatus
 {
     case disconnected;
     case connected;

@@ -3,11 +3,11 @@
 namespace SwooleIO\SocketIO;
 
 use Psr\Http\Message\ServerRequestInterface;
-use SwooleIO\EngineIO\Socket;
+use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
 
-class Connection
+class Socket
 {
 
     use EventHandler;
@@ -24,20 +24,20 @@ class Connection
     protected array $rooms = [];
     protected object $hook;
 
-    public function __construct(protected Socket $socket, protected string $nsp)
+    public function __construct(protected Connection $connection, protected string $nsp)
     {
         $this->cid = io()->generateSid();
-        io()->table('cid')->set($this->cid(), ['sid' => $this->socket->sid()]);
+        io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
     }
 
-    public static function connect(Socket $socket, string $namespace): Connection
+    public static function connect(Connection $connection, string $namespace): Socket
     {
-        return self::create($socket, $namespace);
+        return self::create($connection, $namespace);
     }
 
-    public static function create(Socket $socket, string $namespace): Connection
+    public static function create(Connection $connection, string $namespace): Socket
     {
-        return new Connection($socket, $namespace);
+        return new Socket($connection, $namespace);
     }
 
     public function hook(object $listener): self
@@ -65,12 +65,12 @@ class Connection
     {
         if (in_array($event, self::reserved_events)) return false;
         $packet = Packet::create('event', $event, ...$data);
-        return $this->socket->push($packet);
+        return $this->connection->push($packet);
     }
 
     public function close(): void
     {
-        $this->socket->close($this->nsp);
+        $this->connection->close($this->nsp);
     }
 
     public function nsp(): string
@@ -83,7 +83,6 @@ class Connection
         $ev = new Event($this, $packet);
         switch ($packet->getSocketType(1)) {
             case 0:
-                $this->emitReserved('connect', ['sid' => $this->cid]);
                 $ev->type = 'connection';
                 io()->of($this->nsp)->dispatch($ev);
                 $ev->type = 'connect';
@@ -98,12 +97,12 @@ class Connection
     {
         if (!in_array($event, self::reserved_events)) return false;
         $packet = Packet::create($event, $data);
-        return $this->socket->push($packet);
+        return $this->connection->push($packet);
     }
 
-    public function socket(): Socket
+    public function socket(): Connection
     {
-        return $this->socket;
+        return $this->connection;
     }
 
 }

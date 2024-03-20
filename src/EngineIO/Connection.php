@@ -5,20 +5,20 @@ namespace SwooleIO\EngineIO;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Timer;
 use Psr\Http\Message\ServerRequestInterface;
-use SwooleIO\Constants\SocketStatus;
+use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\Transport;
-use SwooleIO\SocketIO\Connection;
+use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\SocketIO\Packet as SioPacket;
-use function SwooleIO\debug;
+use SwooleIO\SocketIO\Socket;
 use function SwooleIO\io;
 
-class Socket
+class Connection
 {
 
     public static int $pingTimeout = 20000;
-    public static int $pingInterval = 6000;
-    /** @var Socket[] */
-    protected static array $Sockets = [];
+    public static int $pingInterval = 25000;
+    /** @var Connection[] */
+    protected static array $Connections = [];
     public ?int $writable = null;
     protected ServerRequestInterface $request;
     protected int $fd = -1;
@@ -26,10 +26,10 @@ class Socket
 
     /** @var string[] $buffer */
     protected array $buffer = [];
-    /** @var Connection[] */
-    protected array $connections = [];
+    /** @var Socket[] */
+    protected array $sockets = [];
     protected string $pid;
-    protected SocketStatus $status = SocketStatus::disconnected;
+    protected ConnectionStatus $status = ConnectionStatus::disconnected;
     protected ?Transport $upgrade;
     protected array $timers;
 
@@ -38,17 +38,17 @@ class Socket
         $this->pid = $this->sid;
     }
 
-    public static function bySid(string $sid): ?Socket
+    public static function bySid(string $sid): ?Connection
     {
         return self::recover($sid);
     }
 
-    public static function recover(string $sid): ?Socket
+    public static function recover(string $sid): ?Connection
     {
-        if (isset(self::$Sockets[$sid]))
-            return self::$Sockets[$sid];
+        if (isset(self::$Connections[$sid]))
+            return self::$Connections[$sid];
         $socket = self::fetch($sid);
-        if (isset($socket)) self::$Sockets[$sid] = $socket;
+        if (isset($socket)) self::$Connections[$sid] = $socket;
         return $socket;
     }
 
@@ -57,31 +57,29 @@ class Socket
         return io()->table('sid')->get($sid, 'sock');
     }
 
-    public static function byPid(string $pid): ?Socket
+    public static function byPid(string $pid): ?Connection
     {
         return self::recover(io()->table('pid')->get($pid, 'sid') ?? '');
     }
 
-    public static function byFd(int $fd): ?Socket
+    public static function byFd(int $fd): ?Connection
     {
         return self::recover(io()->table('fd')->get($fd, 'sid') ?? '');
     }
 
-    public static function connect(string $sid): Socket
+    public static function connect(string $sid): Connection
     {
         return self::recover($sid) ?? self::create($sid);
     }
 
-    public static function create(string $sid, Transport $transport = Transport::polling): Socket
+    public static function create(string $sid, Transport $transport = Transport::polling): Connection
     {
-        $socket = new Socket($sid);
-        $socket->status = SocketStatus::connected;
-        $ping = Packet::create('ping');
-        var_dump(spl_object_id($socket));
-        $socket->timers['ping'] = Timer::tick(Socket::$pingInterval, fn() => $socket->push($ping));
-        $socket->resetTimeout();
-        if (isset($transport)) $socket->transport($transport)->save();
-        return self::$Sockets[$sid] = $socket;
+        $connection = new Connection($sid);
+        $connection->status = ConnectionStatus::connected;
+        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet), Packet::create('ping'));
+        $connection->resetTimeout();
+        if (isset($transport)) $connection->transport($transport)->save();
+        return self::$Connections[$sid] = $connection;
     }
 
     public function push(Packet $packet): bool
@@ -96,7 +94,6 @@ class Socket
         $server = io()->server();
         switch ($this->transport) {
             case Transport::polling:
-                if ($this->buffer && $this->buffer[0] == '2') var_dump($this->writable, $this->buffer);
                 if (isset($this->writable) && $this->buffer) {
                     $response = Response::create($this->writable);
                     if ($response->write(implode(chr(30), $this->buffer)))
@@ -122,7 +119,7 @@ class Socket
     public function isConnected(): bool
     {
         $io = io();
-        if ($this->status == SocketStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
+        if ($this->status == ConnectionStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
             return true;
         return false;
     }
@@ -131,20 +128,20 @@ class Socket
     {
         if ($timer_id = &$this->timers['timeout'])
             Timer::clear($timer_id);
-        return $timer_id = Timer::after(Socket::$pingTimeout, fn() => $this->disconnect('ping timeout'));
+        return $timer_id = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
     }
 
     public function disconnect(string $reason = ''): bool
     {
-        foreach ($this->connections as $connection)
+        foreach ($this->sockets as $connection)
             $connection->close();
-        unset(self::$Sockets[$this->fd]);
+        unset(self::$Connections[$this->fd]);
         return $this->fd == -1 || io()->server()->disconnect($this->fd, reason: $reason);
     }
 
     public function close(string $namespace): void
     {
-        unset($this->connections[$namespace]);
+        unset($this->sockets[$namespace]);
     }
 
     public function save(bool $socket = false): self
@@ -161,7 +158,7 @@ class Socket
         return $this;
     }
 
-    public function transport(Transport $transport = null): Transport|Socket
+    public function transport(Transport $transport = null): Transport|Connection
     {
         if (!isset($transport)) return $this->transport;
         if ($transport != $this->transport)
@@ -171,21 +168,21 @@ class Socket
 
     public static function saveAll(): void
     {
-        foreach (self::$Sockets as $socket)
+        foreach (self::$Connections as $socket)
             $socket->save();
     }
 
-    public function is(SocketStatus ...$status): bool
+    public function is(ConnectionStatus ...$status): bool
     {
         return in_array($this->status, $status);
     }
 
-    public function status(): SocketStatus
+    public function status(): ConnectionStatus
     {
         return $this->status;
     }
 
-    public function sid(string $sid = null): string|Socket
+    public function sid(string $sid = null): string|Connection
     {
         if (!isset($sid)) return $this->sid;
         if ($sid != $this->sid) {
@@ -196,7 +193,7 @@ class Socket
         return $this;
     }
 
-    public function request(ServerRequestInterface $request = null): ServerRequestInterface|Socket
+    public function request(ServerRequestInterface $request = null): ServerRequestInterface|Connection
     {
         if (!isset($request)) return $this->request;
         $this->request = $request;
@@ -209,14 +206,14 @@ class Socket
         $server = $io->server();
         switch ($packet->getEngineType(1)) {
             case 1:
-                $this->status = SocketStatus::closing;
+                $this->status = ConnectionStatus::closing;
                 $this->disconnect();
-                $this->status = SocketStatus::closed;
+                $this->status = ConnectionStatus::closed;
                 break;
             case 2:
                 $payload = $packet->getPayload();
                 $pong = Packet::create('pong', $payload);
-                if ($this->status == SocketStatus::connected && $payload == 'probe') {
+                if ($this->status == ConnectionStatus::connected && $payload == 'probe') {
                     $this->upgrading(Transport::websocket);
                     if ($this->upgrade == Transport::websocket)
                         $server->push($this->fd, $pong->encode());
@@ -228,15 +225,20 @@ class Socket
                 break;
             case 4:
                 $nsp = $packet->getNamespace();
-                $connection = &$this->connections[$nsp];
-                if (!isset($connection))
-                    $connection = Connection::create($this, $nsp);
-                $connection->receive($packet);
+                try {
+                    if (!isset($this->sockets[$nsp])) {
+                        $socket = Socket::create($this, $nsp);
+                    }
+                    $this->sockets[$nsp] = $socket;
+                    $socket->receive($packet);
+                } catch (ConnectionError $e) {
+                    $socket->emitReserved('connect_error', 'Invalid namespace');
+                }
                 break;
             case 5:
                 $this->transport($this->upgrade);
                 $this->upgrade = null;
-                $this->status = SocketStatus::upgraded;
+                $this->status = ConnectionStatus::upgraded;
                 break;
         }
     }
@@ -244,11 +246,11 @@ class Socket
     public function upgrading(Transport $transport): self
     {
         $this->upgrade = $transport;
-        $this->status = SocketStatus::upgrading;
+        $this->status = ConnectionStatus::upgrading;
         return $this;
     }
 
-    public function fd(int $fd = null): int|Socket
+    public function fd(int $fd = null): int|Connection
     {
         $io = io();
         if (!isset($fd)) return $this->fd;

@@ -1,6 +1,7 @@
 <?php
 
 namespace SwooleIO\Constants;
+
 enum Transport: int
 {
     case polling = 0;

@@ -2,7 +2,7 @@
 
 namespace SwooleIO\Process;
 
-use SwooleIO\EngineIO\Socket;
+use SwooleIO\EngineIO\Connection;
 use SwooleIO\IO;
 use SwooleIO\Lib\Process;
 
@@ -18,6 +18,6 @@ class Worker extends Process
 
     public function exit(): void
     {
-        Socket::saveAll();
+        Connection::saveAll();
     }
 }
