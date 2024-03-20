@@ -7,28 +7,64 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Server;
-use SwooleIO\EngineIO\EngineIOMiddleware;
+use SwooleIO\Constants\SocketStatus;
+use SwooleIO\Constants\Transport;
+use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\EngineIO\Socket;
+use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\Handler\NotFoundHandler;
 use SwooleIO\Psr\Handler\QueueRequestHandler;
 use SwooleIO\Psr\Handler\StackRequestHandler;
+use SwooleIO\SocketIO\Packet;
 
 class Http extends Hook
 {
     public StackRequestHandler $handler;
+    protected IO $io;
 
     public function __construct(Server $target, bool $registerNow = false)
     {
         parent::__construct($target, $registerNow);
+        $this->io = IO::instance();
         $this->handler = new QueueRequestHandler(new NotFoundHandler());
-        $this->handler->add(new EngineIOMiddleware());
     }
 
     public function onRequest(Request $request, Response $response): void
     {
         $serverRequest = ServerRequest::from($request);
         $serverResponse = $this->handler->handle($serverRequest);
-        ServerResponse::emit($response, $serverResponse);
+        if (str_starts_with($serverRequest->getUri()->getPath(), $this->io->path()))
+            $this->SocketIO($request, $response);
+        else
+            ServerResponse::emit($response, $serverResponse);
+    }
+
+    protected function SocketIO(Request $request, Response $response): bool
+    {
+        $sid = &$request->get['sid'];
+        if ($request->get['transport'] == 'polling' && $sid) {
+            $socket = Socket::recover($sid);
+            if (isset($socket)) {
+                if ($request->getMethod() == 'POST') {
+                    $socket->receive(Packet::from($request->getContent()));
+                    return $response->write('ok');
+                } else {
+                    if ($socket->transport() != Transport::polling || $socket->is(SocketStatus::upgrading, SocketStatus::upgraded))
+                        return $response->write(EioPacket::create('noop')->encode());
+                    else {
+                        $socket->writable = $response->fd;
+                        $response->detach();
+                        return $socket->flush();
+                    }
+                }
+            } else
+                return $response->status(403, 'Permission denied');
+
+        } else {
+            Socket::create($sid = $this->io->generateSid())->save(true);
+            return $response->write(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Socket::$pingInterval, "pingTimeout" => Socket::$pingTimeout])->encode());
+        }
     }
 
 }

@@ -2,31 +2,36 @@
 
 namespace SwooleIO\EngineIO;
 
+use OpenSwoole\Http\Response;
+use OpenSwoole\Timer;
 use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\Constants\SocketStatus;
 use SwooleIO\Constants\Transport;
 use SwooleIO\SocketIO\Connection;
 use SwooleIO\SocketIO\Packet as SioPacket;
+use function SwooleIO\debug;
 use function SwooleIO\io;
 
 class Socket
 {
 
+    public static int $pingTimeout = 20000;
+    public static int $pingInterval = 6000;
     /** @var Socket[] */
     protected static array $Sockets = [];
+    public ?int $writable = null;
     protected ServerRequestInterface $request;
-
-    protected int $fd = 0;
+    protected int $fd = -1;
     protected Transport $transport = Transport::polling;
-    protected string $buffer = '';
 
+    /** @var string[] $buffer */
+    protected array $buffer = [];
     /** @var Connection[] */
     protected array $connections = [];
     protected string $pid;
     protected SocketStatus $status = SocketStatus::disconnected;
     protected ?Transport $upgrade;
-    public static int $pingTimeout;
-    public static int $pingInterval;
+    protected array $timers;
 
     public function __construct(protected string $sid)
     {
@@ -71,8 +76,75 @@ class Socket
     {
         $socket = new Socket($sid);
         $socket->status = SocketStatus::connected;
+        $ping = Packet::create('ping');
+        var_dump(spl_object_id($socket));
+        $socket->timers['ping'] = Timer::tick(Socket::$pingInterval, fn() => $socket->push($ping));
+        $socket->resetTimeout();
         if (isset($transport)) $socket->transport($transport)->save();
-        return $socket;
+        return self::$Sockets[$sid] = $socket;
+    }
+
+    public function push(Packet $packet): bool
+    {
+        $this->buffer[] = $packet->encode(true);
+        return $this->flush();
+    }
+
+    public function flush(): bool
+    {
+        if (isset($this->upgrade)) return false;
+        $server = io()->server();
+        switch ($this->transport) {
+            case Transport::polling:
+                if ($this->buffer && $this->buffer[0] == '2') var_dump($this->writable, $this->buffer);
+                if (isset($this->writable) && $this->buffer) {
+                    $response = Response::create($this->writable);
+                    if ($response->write(implode(chr(30), $this->buffer)))
+                        $this->buffer = [];
+                    $response->end();
+                    $this->writable = null;
+                }
+                return true;
+            case Transport::websocket:
+                if ($this->isConnected())
+                    foreach ($this->buffer as $key => $data) {
+                        if ($server->push($this->fd, $data))
+                            unset($this->buffer[$key]);
+                        else
+                            return false;
+                    }
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public function isConnected(): bool
+    {
+        $io = io();
+        if ($this->status == SocketStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
+            return true;
+        return false;
+    }
+
+    protected function resetTimeout(): int|bool
+    {
+        if ($timer_id = &$this->timers['timeout'])
+            Timer::clear($timer_id);
+        return $timer_id = Timer::after(Socket::$pingTimeout, fn() => $this->disconnect('ping timeout'));
+    }
+
+    public function disconnect(string $reason = ''): bool
+    {
+        foreach ($this->connections as $connection)
+            $connection->close();
+        unset(self::$Sockets[$this->fd]);
+        return $this->fd == -1 || io()->server()->disconnect($this->fd, reason: $reason);
+    }
+
+    public function close(string $namespace): void
+    {
+        unset($this->connections[$namespace]);
     }
 
     public function save(bool $socket = false): self
@@ -103,9 +175,9 @@ class Socket
             $socket->save();
     }
 
-    public function is(SocketStatus $status): bool
+    public function is(SocketStatus ...$status): bool
     {
-        return $status == $this->status;
+        return in_array($this->status, $status);
     }
 
     public function status(): SocketStatus
@@ -143,13 +215,16 @@ class Socket
                 break;
             case 2:
                 $payload = $packet->getPayload();
-                $packet = Packet::create('pong', $payload);
+                $pong = Packet::create('pong', $payload);
                 if ($this->status == SocketStatus::connected && $payload == 'probe') {
                     $this->upgrading(Transport::websocket);
                     if ($this->upgrade == Transport::websocket)
-                        $server->push($this->fd, $packet->encode());
+                        $server->push($this->fd, $pong->encode());
                 } else
-                    $this->push($packet);
+                    $this->push($pong);
+                break;
+            case 3:
+                $this->resetTimeout();
                 break;
             case 4:
                 $nsp = $packet->getNamespace();
@@ -166,42 +241,11 @@ class Socket
         }
     }
 
-    public function disconnect(): bool
-    {
-        foreach ($this->connections as $connection)
-            $connection->close();
-        unset(self::$Sockets[$this->fd]);
-        return io()->server()->disconnect($this->fd);
-    }
-
-    public function close(string $namespace): void
-    {
-        unset($this->connections[$namespace]);
-    }
-
     public function upgrading(Transport $transport): self
     {
         $this->upgrade = $transport;
         $this->status = SocketStatus::upgrading;
         return $this;
-    }
-
-    public function push(Packet $packet): bool
-    {
-        $server = io()->server();
-        $payload = $packet->encode(true);
-        if ($this->isConnected() && $server->push($this->fd, $payload)) return true;
-        if ($this->buffer) $this->buffer .= chr(30);
-        $this->buffer .= $payload;
-        return false;
-    }
-
-    public function isConnected(): bool
-    {
-        $io = io();
-        if ($this->status == SocketStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
-            return true;
-        return false;
     }
 
     public function fd(int $fd = null): int|Socket
@@ -219,13 +263,6 @@ class Socket
     public function pid(): string
     {
         return $this->pid;
-    }
-
-    public function drain(): string
-    {
-        $data = $this->buffer;
-        $this->buffer = '';
-        return $data;
     }
 
 }

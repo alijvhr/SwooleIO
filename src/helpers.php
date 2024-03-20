@@ -9,6 +9,13 @@ if (!function_exists('io')) {
     }
 }
 
+if (!function_exists('debug')) {
+    function debug(string $msg): void
+    {
+        IO::instance()->log()->debug($msg);
+    }
+}
+
 if (!function_exists('uuid')) {
     function uuid(): string
     {

@@ -17,7 +17,6 @@ class NotFoundHandler implements RequestHandlerInterface {
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        echo "not found\n";
         return $this->responsePrototype;
     }
 };
