@@ -2,23 +2,11 @@
 
 namespace SwooleIO\EngineIO;
 
+use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Exceptions\InvalidPacketException;
 
 class Packet implements \Iterator
 {
-
-    /**
-     * Engine.io packet types.
-     */
-    const types = [
-        'open',
-        'close',
-        'ping',
-        'pong',
-        'message',
-        'upgrade',
-        'noop',
-    ];
 
     protected string $packet = '';
 
@@ -28,7 +16,7 @@ class Packet implements \Iterator
     protected self $iterator;
     protected string $payload;
     protected bool $valid;
-    protected int $engine_type;
+    protected EioPacketType $engine_type;
     protected int $id;
 
     public function __construct(string $packet = null)
@@ -53,11 +41,10 @@ class Packet implements \Iterator
         if (isset($this->valid)) return $this;
         $payloads = explode(chr(30), $this->packet);
         $payload = $payloads[0];
-        $type = $payload[0] ?? '';
         $this->packet = $payload;
-        if (is_numeric($type) && isset(self::types[$type])) {
+        if ($type = EioPacketType::tryFrom($payload[0] ?? -1)) {
             $this->payload = substr($payload, 1);
-            $this->engine_type = +$type;
+            $this->engine_type = $type;
             $this->valid = true;
         } else {
             $this->valid = false;
@@ -90,12 +77,10 @@ class Packet implements \Iterator
         }
     }
 
-    public static function create(string $type, ...$data): self
+    public static function create(EioPacketType $type, ...$data): self
     {
-        $type_id = array_search($type, self::types);
-        if ($type_id === false) $type_id = -1;
         $object = new static();
-        $object->engine_type = $type_id;
+        $object->engine_type = $type;
         $count = count($data);
         if ($count == 1)
             $data = $data[0];
@@ -104,9 +89,9 @@ class Packet implements \Iterator
         return $object;
     }
 
-    public function getEngineType(bool $as_int = false): int|string
+    public function getEngineType(bool $as_int = false): int|EioPacketType
     {
-        return $as_int ? $this->engine_type : self::types[$this->engine_type];
+        return $as_int ? $this->engine_type->value : $this->engine_type;
     }
 
     public function getPayload(): ?string
@@ -129,14 +114,7 @@ class Packet implements \Iterator
 
     public function encode(bool $all = false): string
     {
-        if ($all) {
-//            $encoded = [];
-//            foreach ($this->order as $packet)
-//                $encoded[] = $packet->encode();
-            $payload = implode(chr(30), $this->order);
-        } else
-            $payload = "$this->engine_type$this->payload";
-        return $payload;
+        return $all ? implode(chr(30), $this->order) : $this->engine_type->value . $this->payload;
     }
 
     public function next(): void

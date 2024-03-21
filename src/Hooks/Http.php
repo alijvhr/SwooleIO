@@ -58,8 +58,10 @@ class Http extends Hook
                         return $socket->flush();
                     }
                 }
-            } else
-                return $response->status(403, 'Permission denied');
+            } else {
+                $response->status(400, 'Bad Request');
+                return $response->write('{"code":1,"message":"Session ID unknown"}');
+            }
 
         } else {
             Connection::create($sid = $this->io->generateSid())->save(true);

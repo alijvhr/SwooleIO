@@ -6,8 +6,11 @@ use OpenSwoole\Http\Response;
 use OpenSwoole\Timer;
 use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\Constants\ConnectionStatus;
+use SwooleIO\Constants\EioPacketType;
+use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\Exceptions\ConnectionError;
+use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
 use function SwooleIO\io;
@@ -204,15 +207,15 @@ class Connection
     {
         $io = io();
         $server = $io->server();
-        switch ($packet->getEngineType(1)) {
-            case 1:
+        switch ($packet->getEngineType()) {
+            case EioPacketType::close:
                 $this->status = ConnectionStatus::closing;
                 $this->disconnect();
                 $this->status = ConnectionStatus::closed;
                 break;
-            case 2:
+            case EioPacketType::ping:
                 $payload = $packet->getPayload();
-                $pong = Packet::create('pong', $payload);
+                $pong = Packet::create(EioPacketType::pong, $payload);
                 if ($this->status == ConnectionStatus::connected && $payload == 'probe') {
                     $this->upgrading(Transport::websocket);
                     if ($this->upgrade == Transport::websocket)
@@ -220,22 +223,24 @@ class Connection
                 } else
                     $this->push($pong);
                 break;
-            case 3:
+            case EioPacketType::pong:
                 $this->resetTimeout();
                 break;
-            case 4:
+            case EioPacketType::message:
                 $nsp = $packet->getNamespace();
                 try {
-                    if (!isset($this->sockets[$nsp])) {
-                        $socket = Socket::create($this, $nsp);
+                    if ($packet->getSocketType() == SioPacketType::connect) {
+                        if(!isset($this->sockets[$nsp])) {
+                            $socket = Socket::create($this, $nsp);
+                            Nsp::get($nsp)->connect($socket);
+                        }
                     }
-                    $this->sockets[$nsp] = $socket;
                     $socket->receive($packet);
                 } catch (ConnectionError $e) {
                     $socket->emitReserved('connect_error', 'Invalid namespace');
                 }
                 break;
-            case 5:
+            case EioPacketType::upgrade:
                 $this->transport($this->upgrade);
                 $this->upgrade = null;
                 $this->status = ConnectionStatus::upgraded;

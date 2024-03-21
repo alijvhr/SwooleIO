@@ -2,7 +2,9 @@
 
 namespace SwooleIO\SocketIO;
 
-use SwooleIO\EngineIO\Packet as EngineIOPacket;
+use SwooleIO\Constants\EioPacketType;
+use SwooleIO\Constants\SioPacketType;
+use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Exceptions\InvalidPacketException;
 
 /**
@@ -11,24 +13,15 @@ use SwooleIO\Exceptions\InvalidPacketException;
  * @method static static parse(string $packet)
  *
  */
-class Packet extends EngineIOPacket
+class Packet extends EioPacket
 {
 
-    const types = [
-        'connect',
-        'disconnect',
-        'event',
-        'ack',
-        'error',
-        'binary_event',
-        'binary_ack',
-    ];
 
     protected string $packet = '';
     protected array $params;
     protected mixed $data;
     protected string $event;
-    protected int $socket_type;
+    protected ?SioPacketType $socket_type;
 
     protected string $namespace;
     protected array $binary_attachments;
@@ -40,16 +33,15 @@ class Packet extends EngineIOPacket
         parent::__construct($packet);
     }
 
-    public static function create(string $type, ...$data): self
+    public static function create(SioPacketType|EioPacketType $type, ...$data): self|EioPacket
     {
-        $type_id = array_search($type, self::types);
-        if ($type_id === false)
-            throw new InvalidPacketException();
-        $object = new static();
-        $object->engine_type = 4;
-        $object->socket_type = $type_id;
+        if ($type instanceof EioPacketType)
+            return parent::create($type, ...$data);
+        $object = new self();
+        $object->engine_type = EioPacketType::message;
+        $object->socket_type = $type;
         $object->namespace = '/';
-        if (in_array($type_id, [2, 5])) {
+        if (in_array($type, [SioPacketType::event, SioPacketType::binary_event])) {
             $object->event = $data[0];
             $object->params = array_slice($data, 1);
             $object->data = $data;
@@ -57,7 +49,6 @@ class Packet extends EngineIOPacket
             $object->params = $data;
             $object->data = $data[0];
         }
-
         return $object;
     }
 
@@ -65,12 +56,12 @@ class Packet extends EngineIOPacket
      * Get socket packet type of raw payload.
      *
      * @param bool $as_int
-     * @return int|string|null
+     * @return int|SioPacketType|null
      */
-    public function getSocketType(bool $as_int): int|string|null
+    public function getSocketType(bool $as_int = false): int|SioPacketType|null
     {
-        if ($this->engine_type == 4)
-            return $as_int ? $this->socket_type : self::types[$this->socket_type];
+        if ($this->engine_type == EioPacketType::message)
+            return $as_int ? $this->socket_type->value : $this->socket_type;
         return null;
     }
 
@@ -129,14 +120,11 @@ class Packet extends EngineIOPacket
     public function encode(bool $all = false): string
     {
         if (!$all) {
-            $this->engine_type = 4;
-            $id = $this->id ?? 0;
+            $this->engine_type = EioPacketType::message;
+            $id = $this->id ?? '';
             $namespace = "$this->namespace,";
             $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
-            if (in_array($this->socket_type, [2, 3, 5, 6]))
-                $this->payload = "$this->socket_type$namespace$id$data";
-            else
-                $this->payload = "$this->socket_type$data";
+            $this->payload = $this->socket_type->value . $namespace . $id . $data;
         }
         return parent::encode($all);
     }
@@ -144,9 +132,9 @@ class Packet extends EngineIOPacket
     protected function parse(): self
     {
         parent::parse();
-        if ($this->valid && $this->engine_type === 4) {
+        if ($this->valid && $this->engine_type == EioPacketType::message) {
             preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $this->payload, $parts);
-            $this->socket_type = +$parts[1];
+            $this->socket_type = SioPacketType::tryFrom($parts[1]);
             $this->binary_attachments = [];
             $this->binary_count = +(substr($parts[2], 0, -1) ?: 0);
             $this->namespace = substr($parts[3], 0, -1) ?: '/';
@@ -154,21 +142,21 @@ class Packet extends EngineIOPacket
             $payload = json_decode($parts[5], true);
             $valid = false;
             switch ($this->socket_type) {
-                case 6:
-                case 3:
-                case 0:
+                case SioPacketType::binary_ack:
+                case SioPacketType::ack:
+                case SioPacketType::connect:
                     $valid = is_array($payload);
                     $this->data = $payload;
                     break;
-                case 1:
+                case SioPacketType::disconnect:
                     $valid = $payload == '';
                     break;
-                case 4:
+                case SioPacketType::error:
                     $valid = is_string($payload) || is_array($payload);
                     $this->data = $payload;
                     break;
-                case 2:
-                case 5:
+                case SioPacketType::event:
+                case SioPacketType::binary_event:
                     $valid = is_array($payload) && (is_numeric($payload[0]) || (is_string($payload[0])));
                     $this->event = $payload[0];
                     $this->params = array_slice($payload, 1);

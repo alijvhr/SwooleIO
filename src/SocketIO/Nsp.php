@@ -10,7 +10,8 @@ class Nsp
 {
     use EventHandler;
 
-    protected static array $routes = [];
+    /** @var Nsp[] */
+    protected static array $namespaces = [];
     public string $path;
     /**
      * @var callable[]
@@ -31,9 +32,9 @@ class Nsp
 
     public static function get(string $name): self
     {
-        if (!isset(self::$routes[$name]))
-            self::$routes[$name] = new static($name);
-        return self::$routes[$name];
+        if (!isset(self::$namespaces[$name]))
+            self::$namespaces[$name] = new static($name);
+        return self::$namespaces[$name];
     }
 
     public function use(callable $middleware): self
@@ -121,12 +122,6 @@ class Nsp
     {
         go(function () use ($socket, $packet) {
             if ($packet->getSocketType(true) == 0) {
-                try {
-                    $this->run($socket);
-                    $socket->emitReserved('connect', ['sid' => io()->generateSid()]);
-                }catch (ConnectionError $e){
-                    $socket->emitReserved('connect', ['sid' => ]);
-                }
             }
         });
     }
@@ -136,6 +131,18 @@ class Nsp
         $fns = array_reverse($this->middlewares);
         $next = fn($i) => $fns[$i]($socket, $fns[$i + 1]);
         return (fn($i)=> $fns[$i]($socket, $next($i + 1)))(0);
+    }
+
+    public function connect(Socket $socket)
+    {
+        go(function () use ($socket) {
+            try {
+                $this->run($socket);
+                $socket->emitReserved('connect', ['sid' => io()->generateSid()]);
+            }catch (ConnectionError $e){
+                $socket->emitReserved('connect', ['sid' => '']);
+            }
+        });
     }
 
     private function _createSocket($client, $auth)
