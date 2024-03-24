@@ -151,7 +151,7 @@ class Packet extends EioPacket
                 case SioPacketType::disconnect:
                     $valid = $payload == '';
                     break;
-                case SioPacketType::error:
+                case SioPacketType::connect_error:
                     $valid = is_string($payload) || is_array($payload);
                     $this->data = $payload;
                     break;

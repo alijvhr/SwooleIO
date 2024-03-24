@@ -42,7 +42,8 @@ class Packet implements \Iterator
         $payloads = explode(chr(30), $this->packet);
         $payload = $payloads[0];
         $this->packet = $payload;
-        if ($type = EioPacketType::tryFrom($payload[0] ?? -1)) {
+        $type = EioPacketType::tryFrom($payload[0] ?? -1);
+        if (isset($type)) {
             $this->payload = substr($payload, 1);
             $this->engine_type = $type;
             $this->valid = true;

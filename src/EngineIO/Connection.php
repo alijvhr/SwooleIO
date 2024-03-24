@@ -145,7 +145,11 @@ class Connection
                 if ($packet->getSocketType() == SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
                         $socket = Socket::create($this, $nsp);
-                        Nsp::get($nsp)->connect($socket, $packet);
+                        if (Nsp::exists($nsp)) {
+                            Nsp::get($nsp)->connect($socket, $packet);
+                            $socket->emitReserved(SioPacketType::connect, ['sid' => $socket->cid()]);
+                        } else
+                            $socket->emitReserved(SioPacketType::connect_error, ['message' => 'Invalid Namespace']);
                     } else break;
                 } elseif (isset($this->sockets[$nsp])) $socket = $this->sockets[$nsp];
                 else break;
@@ -159,12 +163,14 @@ class Connection
         }
     }
 
-    public function disconnect(string $reason = ''): bool
+    public function disconnect(string $reason = ''): void
     {
         foreach ($this->sockets as $connection)
             $connection->close();
         unset(self::$Connections[$this->fd]);
-        return $this->fd == -1 || io()->server()->disconnect($this->fd, reason: $reason);
+        $server = io()->server();
+        if ($server->isEstablished($this->fd))
+            $server->disconnect($this->fd, reason: $reason);
     }
 
     public function close(string $namespace): void
@@ -176,7 +182,7 @@ class Connection
     {
         $connection = new Connection($sid);
         $connection->status = ConnectionStatus::connected;
-        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet), Packet::create('ping'));
+        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet), Packet::create(EioPacketType::ping));
         $connection->resetTimeout();
         if (isset($transport)) $connection->transport($transport)->save();
         return self::$Connections[$sid] = $connection;
