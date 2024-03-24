@@ -3,6 +3,8 @@
 namespace SwooleIO\SocketIO;
 
 use Psr\Http\Message\ServerRequestInterface;
+use SwooleIO\Constants\ReservedEvents;
+use SwooleIO\Constants\SioPacketType;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
@@ -63,8 +65,8 @@ class Socket
 
     public function emit(string $event, mixed ...$data): bool
     {
-        if (in_array($event, self::reserved_events)) return false;
-        $packet = Packet::create('event', $event, ...$data);
+        if(in_array($event, self::reserved_events)) return false;
+        $packet = Packet::create(SioPacketType::event, $event, ...$data);
         return $this->connection->push($packet);
     }
 
@@ -82,21 +84,17 @@ class Socket
     {
         $ev = new Event($this, $packet);
         switch ($packet->getSocketType(1)) {
-            case 0:
-                $ev->type = 'connection';
-                io()->of($this->nsp)->dispatch($ev);
-                $ev->type = 'connect';
-            case 2:
-            case 5:
+            case SioPacketType::event:
+            case SioPacketType::binary_event:
                 $this->dispatch($ev);
+                break;
 
         }
     }
 
-    public function emitReserved(string $event, mixed $data): bool
+    public function emitReserved(SioPacketType $type, mixed $data): bool
     {
-        if (!in_array($event, self::reserved_events)) return false;
-        $packet = Packet::create($event, $data);
+        $packet = Packet::create($type, $data);
         return $this->connection->push($packet);
     }
 

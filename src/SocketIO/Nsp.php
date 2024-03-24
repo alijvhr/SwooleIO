@@ -2,6 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
+use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
@@ -129,20 +130,23 @@ class Nsp
     private function run(Socket $socket)
     {
         $fns = array_reverse($this->middlewares);
-        $next = fn($i) => $fns[$i]($socket, $fns[$i + 1]);
-        return (fn($i)=> $fns[$i]($socket, $next($i + 1)))(0);
+        $next = fn($i, $soc, $next) => $fns[$i]($soc, fn() => isset($fns[$i + 1]) ? $next($i + 1, $soc, $next) : null);
+        return $next(0,$socket, $next);
     }
 
-    public function connect(Socket $socket)
+    public function connect(Socket $socket, Packet $packet): void
     {
-        go(function () use ($socket) {
+        go(function (Socket $socket, Packet $packet) {
             try {
                 $this->run($socket);
-                $socket->emitReserved('connect', ['sid' => io()->generateSid()]);
+                $ev = new Event($socket, $packet);
+                $ev->type = 'connection';
+                $this->dispatch($ev);
+                $socket->emitReserved(SioPacketType::connect, ['sid' => $socket->cid()]);
             }catch (ConnectionError $e){
-                $socket->emitReserved('connect', ['sid' => '']);
+                $socket->emitReserved(SioPacketType::connect_error, ['message' => $e->getMessage()]);
             }
-        });
+        }, $socket, $packet);
     }
 
     private function _createSocket($client, $auth)

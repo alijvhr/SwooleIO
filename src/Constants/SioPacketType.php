@@ -9,7 +9,7 @@ enum SioPacketType: int
 
     case event = 2;
     case ack = 3;
-    case error = 4;
+    case connect_error = 4;
     case binary_event = 5;
     case binary_ack = 6;
 }

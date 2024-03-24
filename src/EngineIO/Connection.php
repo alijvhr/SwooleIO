@@ -9,7 +9,6 @@ use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
-use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
@@ -70,9 +69,107 @@ class Connection
         return self::recover(io()->table('fd')->get($fd, 'sid') ?? '');
     }
 
-    public static function connect(string $sid): Connection
+    public static function saveAll(): void
     {
-        return self::recover($sid) ?? self::create($sid);
+        foreach (self::$Connections as $socket)
+            $socket->save();
+    }
+
+    public function save(bool $socket = false): self
+    {
+        $io = io();
+        $worker = $io->server()->getWorkerId();
+        $save = ['transport' => $this->transport->value, 'worker' => $worker];
+        $sid = ['sid' => $this->sid, 'worker' => $worker];
+        if ($this->fd)
+            $io->table('fd')->set($this->fd, $sid);
+        if ($socket) $save['sock'] = $this;
+        $io->table('sid')->set($this->sid, $save);
+        $io->table('pid')->set($this->pid, $sid);
+        return $this;
+    }
+
+    public function is(ConnectionStatus ...$status): bool
+    {
+        return in_array($this->status, $status);
+    }
+
+    public function status(): ConnectionStatus
+    {
+        return $this->status;
+    }
+
+    public function sid(string $sid = null): string|Connection
+    {
+        if (!isset($sid)) return $this->sid;
+        if ($sid != $this->sid) {
+            io()->table('sid')->del($this->sid);
+            $this->sid = $sid;
+            $this->save();
+        }
+        return $this;
+    }
+
+    public function request(ServerRequestInterface $request = null): ServerRequestInterface|Connection
+    {
+        if (!isset($request)) return $this->request;
+        $this->request = $request;
+        return $this;
+    }
+
+    public function receive(SioPacket $packet): void
+    {
+        $io = io();
+        $server = $io->server();
+        switch ($packet->getEngineType()) {
+            case EioPacketType::close:
+                $this->status = ConnectionStatus::closing;
+                $this->disconnect();
+                $this->status = ConnectionStatus::closed;
+                break;
+            case EioPacketType::ping:
+                $payload = $packet->getPayload();
+                $pong = Packet::create(EioPacketType::pong, $payload);
+                if ($this->status == ConnectionStatus::connected && $payload == 'probe') {
+                    $this->upgrading(Transport::websocket);
+                    if ($this->upgrade == Transport::websocket)
+                        $server->push($this->fd, $pong->encode());
+                } else
+                    $this->push($pong);
+                break;
+            case EioPacketType::pong:
+                $this->resetTimeout();
+                break;
+            case EioPacketType::message:
+                $nsp = $packet->getNamespace();
+                if ($packet->getSocketType() == SioPacketType::connect) {
+                    if (!isset($this->sockets[$nsp])) {
+                        $socket = Socket::create($this, $nsp);
+                        Nsp::get($nsp)->connect($socket, $packet);
+                    } else break;
+                } elseif (isset($this->sockets[$nsp])) $socket = $this->sockets[$nsp];
+                else break;
+                $socket->receive($packet);
+                break;
+            case EioPacketType::upgrade:
+                $this->transport($this->upgrade);
+                $this->upgrade = null;
+                $this->status = ConnectionStatus::upgraded;
+                break;
+        }
+    }
+
+    public function disconnect(string $reason = ''): bool
+    {
+        foreach ($this->sockets as $connection)
+            $connection->close();
+        unset(self::$Connections[$this->fd]);
+        return $this->fd == -1 || io()->server()->disconnect($this->fd, reason: $reason);
+    }
+
+    public function close(string $namespace): void
+    {
+        unset($this->sockets[$namespace]);
     }
 
     public static function create(string $sid, Transport $transport = Transport::polling): Connection
@@ -134,33 +231,6 @@ class Connection
         return $timer_id = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
     }
 
-    public function disconnect(string $reason = ''): bool
-    {
-        foreach ($this->sockets as $connection)
-            $connection->close();
-        unset(self::$Connections[$this->fd]);
-        return $this->fd == -1 || io()->server()->disconnect($this->fd, reason: $reason);
-    }
-
-    public function close(string $namespace): void
-    {
-        unset($this->sockets[$namespace]);
-    }
-
-    public function save(bool $socket = false): self
-    {
-        $io = io();
-        $worker = $io->server()->getWorkerId();
-        $save = ['transport' => $this->transport->value, 'worker' => $worker];
-        $sid = ['sid' => $this->sid, 'worker' => $worker];
-        if ($this->fd)
-            $io->table('fd')->set($this->fd, $sid);
-        if ($socket) $save['sock'] = $this;
-        $io->table('sid')->set($this->sid, $save);
-        $io->table('pid')->set($this->pid, $sid);
-        return $this;
-    }
-
     public function transport(Transport $transport = null): Transport|Connection
     {
         if (!isset($transport)) return $this->transport;
@@ -169,90 +239,16 @@ class Connection
         return $this;
     }
 
-    public static function saveAll(): void
-    {
-        foreach (self::$Connections as $socket)
-            $socket->save();
-    }
-
-    public function is(ConnectionStatus ...$status): bool
-    {
-        return in_array($this->status, $status);
-    }
-
-    public function status(): ConnectionStatus
-    {
-        return $this->status;
-    }
-
-    public function sid(string $sid = null): string|Connection
-    {
-        if (!isset($sid)) return $this->sid;
-        if ($sid != $this->sid) {
-            io()->table('sid')->del($this->sid);
-            $this->sid = $sid;
-            $this->save();
-        }
-        return $this;
-    }
-
-    public function request(ServerRequestInterface $request = null): ServerRequestInterface|Connection
-    {
-        if (!isset($request)) return $this->request;
-        $this->request = $request;
-        return $this;
-    }
-
-    public function receive(SioPacket $packet): void
-    {
-        $io = io();
-        $server = $io->server();
-        switch ($packet->getEngineType()) {
-            case EioPacketType::close:
-                $this->status = ConnectionStatus::closing;
-                $this->disconnect();
-                $this->status = ConnectionStatus::closed;
-                break;
-            case EioPacketType::ping:
-                $payload = $packet->getPayload();
-                $pong = Packet::create(EioPacketType::pong, $payload);
-                if ($this->status == ConnectionStatus::connected && $payload == 'probe') {
-                    $this->upgrading(Transport::websocket);
-                    if ($this->upgrade == Transport::websocket)
-                        $server->push($this->fd, $pong->encode());
-                } else
-                    $this->push($pong);
-                break;
-            case EioPacketType::pong:
-                $this->resetTimeout();
-                break;
-            case EioPacketType::message:
-                $nsp = $packet->getNamespace();
-                try {
-                    if ($packet->getSocketType() == SioPacketType::connect) {
-                        if(!isset($this->sockets[$nsp])) {
-                            $socket = Socket::create($this, $nsp);
-                            Nsp::get($nsp)->connect($socket);
-                        }
-                    }
-                    $socket->receive($packet);
-                } catch (ConnectionError $e) {
-                    $socket->emitReserved('connect_error', 'Invalid namespace');
-                }
-                break;
-            case EioPacketType::upgrade:
-                $this->transport($this->upgrade);
-                $this->upgrade = null;
-                $this->status = ConnectionStatus::upgraded;
-                break;
-        }
-    }
-
     public function upgrading(Transport $transport): self
     {
         $this->upgrade = $transport;
         $this->status = ConnectionStatus::upgrading;
         return $this;
+    }
+
+    public static function connect(string $sid): Connection
+    {
+        return self::recover($sid) ?? self::create($sid);
     }
 
     public function fd(int $fd = null): int|Connection

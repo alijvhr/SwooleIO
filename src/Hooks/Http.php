@@ -8,6 +8,7 @@ use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Server;
 use SwooleIO\Constants\ConnectionStatus;
+use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\EngineIO\Connection;
@@ -51,7 +52,7 @@ class Http extends Hook
                     return $response->write('ok');
                 } else {
                     if ($socket->transport() != Transport::polling || $socket->is(ConnectionStatus::upgrading, ConnectionStatus::upgraded))
-                        return $response->write(EioPacket::create('noop')->encode());
+                        return $response->write(EioPacket::create(EioPacketType::noop)->encode());
                     else {
                         $socket->writable = $response->fd;
                         $response->detach();
@@ -65,7 +66,7 @@ class Http extends Hook
 
         } else {
             Connection::create($sid = $this->io->generateSid())->save(true);
-            return $response->write(EioPacket::create('open', ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Connection::$pingInterval, "pingTimeout" => Connection::$pingTimeout])->encode());
+            return $response->write(EioPacket::create(EioPacketType::open, ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Connection::$pingInterval, "pingTimeout" => Connection::$pingTimeout])->encode());
         }
     }
 
