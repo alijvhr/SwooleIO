@@ -62,24 +62,19 @@ class Nsp
         return (new BroadcastOperator($this))->except($room);
     }
 
-    function _add($client, $auth, $fn)
+    public function write(...$args): void
     {
-        // ...
+        $this->send(...$args);
     }
 
-    public function write(...$args): bool
+    public function send(...$args): void
     {
-        return $this->send(...$args);
+        $this->emit("message", ...$args);
     }
 
-    public function send(...$args): bool
+    public function emit($ev, ...$args): void
     {
-        return $this->emit("message", ...$args);
-    }
-
-    public function emit($ev, ...$args): bool
-    {
-        return (new BroadcastOperator($this))->emit($ev, ...$args);
+        (new BroadcastOperator($this))->emit($ev, ...$args);
     }
 
     public function serverSideEmit($ev, ...$args)
@@ -94,40 +89,32 @@ class Nsp
 
     public function fetchSockets()
     {
-        return (new BroadcastOperator($this))->fetchSockets();
+        //TODO: Remote Socket needed
     }
 
-    public function compress($compress)
+    public function compress(bool $compress= true):BroadcastOperator
     {
         return (new BroadcastOperator($this))->compress($compress);
     }
 
-    public function volatile()
+    public function volatile(): BroadcastOperator
     {
         return (new BroadcastOperator($this))->volatile();
     }
 
-    public function local()
+    public function local():BroadcastOperator
     {
         return (new BroadcastOperator($this))->local();
     }
 
-    public function timeout($timeout)
+    public function timeout($timeout):BroadcastOperator
     {
         return (new BroadcastOperator($this))->timeout($timeout);
     }
 
-    public function disconnectSockets($close = false)
+    public function disconnectSockets($close = false):bool
     {
         (new BroadcastOperator($this))->disconnectSockets($close);
-    }
-
-    public function receive(Socket $socket, Packet $packet): void
-    {
-        go(function () use ($socket, $packet) {
-            if ($packet->getSocketType(true) == 0) {
-            }
-        });
     }
 
     public function connect(Socket $socket, Packet $packet): void

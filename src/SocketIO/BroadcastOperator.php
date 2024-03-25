@@ -2,8 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
-use GuzzleHttp\Promise\Promise;
-use SwooleIO\EngineIO\Adapter;
+use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Lib\Builder;
 
 class BroadcastOperator extends Builder
@@ -12,7 +11,6 @@ class BroadcastOperator extends Builder
     protected array $rooms;
 
     protected Nsp $namespace;
-    protected Adapter $adapter;
     protected array $excepts;
 
     protected float $timeout;
@@ -25,7 +23,6 @@ class BroadcastOperator extends Builder
     public function __construct(Nsp $namespace)
     {
         $this->namespace = $namespace;
-        $this->adapter = Adapter::get();
     }
 
     public function in(string ...$rooms): self
@@ -66,132 +63,57 @@ class BroadcastOperator extends Builder
     }
 
 
-    public function emit(string $event, ...$params): self
+    public function emit(string $event, ...$params): void
     {
-        $packet = Packet::create('event', ...$params);
-        return $this->broadcast($packet);
+        $packet = Packet::create(SioPacketType::event, $event, ...$params);
+        $this->broadcast($packet);
     }
 
 
-    public function broadcast(Packet $packet): self
+    public function broadcast(Packet $packet): void
     {
-
-        return $this;
+        go(function(){
+            //TODO: Implement this
+        }, $packet);
     }
-
-    /**
-     * Emits an event and waits for an acknowledgement from all clients.
-     *
-     * @return a Promise that will be fulfilled when all clients have acknowledged the event
-     * @example
-     * try {
-     *   const responses = await io.timeout(1000).emitWithAck("some-event");
-     *   console.log(responses); // one response per client
-     * } catch (e) {
-     *   // some clients did not acknowledge the event in the given delay
-     * }
-     *
-     */
     public function emitWithAck()
     {
 
     }
-
-    /**
-     * Gets a list of clients.
-     *
-     * @deprecated this method will be removed in the next major release, please use {@link IO#serverSideEmit} or
-     * {@link fetchSockets} instead.
-     */
-    public function allSockets()
-    {
-    }
-
-    /**
-     * Returns the matching socket instances. This method works across a cluster of several Socket.IO servers.
-     *
-     * Note: this method also works within a cluster of multiple Socket.IO servers, with a compatible {@link Adapter}.
-     *
-     * @example
-     * // return all Socket instances
-     * const sockets = await io.fetchSockets();
-     *
-     * // return all Socket instances in the "room1" room
-     * const sockets = await io.in("room1").fetchSockets();
-     *
-     * for (const socket of sockets) {
-     *   console.log(socket.id);
-     *   console.log(socket.handshake);
-     *   console.log(socket.rooms);
-     *   console.log(socket.data);
-     *
-     *   socket.emit("hello");
-     *   socket.join("room1");
-     *   socket.leave("room2");
-     *   socket.disconnect();
-     * }
-     */
     public function fetchSockets()
     {
 
     }
-
-    /**
-     * Makes the matching socket instances join the specified rooms.
-     *
-     * Note: this method also works within a cluster of multiple Socket.IO servers, with a compatible {@link Adapter}.
-     *
-     * @param room - a room, or an array of rooms
-     * @example
-     *
-     * // make all socket instances join the "room1" room
-     * io.socketsJoin("room1");
-     *
-     * // make all socket instances in the "room1" room join the "room2" and "room3" rooms
-     * io.in("room1").socketsJoin(["room2", "room3"]);
-     *
-     */
     public function socketsJoin()
     {
 
     }
-
-    /**
-     * Makes the matching socket instances leave the specified rooms.
-     *
-     * Note: this method also works within a cluster of multiple Socket.IO servers, with a compatible {@link Adapter}.
-     *
-     * @param room - a room, or an array of rooms
-     * @example
-     * // make all socket instances leave the "room1" room
-     * io.socketsLeave("room1");
-     *
-     * // make all socket instances in the "room1" room leave the "room2" and "room3" rooms
-     * io.in("room1").socketsLeave(["room2", "room3"]);
-     *
-     */
     public function socketsLeave()
     {
 
     }
 
-    /**
-     * Makes the matching socket instances disconnect.
-     *
-     * Note: this method also works within a cluster of multiple Socket.IO servers, with a compatible {@link Adapter}.
-     *
-     * @param close - whether to close the underlying connection
-     * @example
-     * // make all socket instances disconnect (the connections might be kept alive for other namespaces)
-     * io.disconnectSockets();
-     *
-     * // make all socket instances in the "room1" room disconnect and close the underlying connections
-     * io.in("room1").disconnectSockets(true);
-     *
-     */
     public function disconnectSockets(bool $close = true): void
     {
 
+    }
+
+    public function compress(bool $compress): self
+    {
+        //TODO: Implement this
+        return $this;
+    }
+
+    public function volatile(): self
+    {
+        //TODO: Implement this
+        return $this;
+    }
+
+    public function local(): self
+    {
+        //TODO: Implement this
+        return $this;
     }
 
 
