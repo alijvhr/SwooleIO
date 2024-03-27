@@ -168,6 +168,8 @@ class Connection
         foreach ($this->sockets as $connection)
             $connection->close();
         unset(self::$Connections[$this->fd]);
+        foreach ($this->timers as $timer)
+            Timer::clear($timer);
         $server = io()->server();
         if ($server->isEstablished($this->fd))
             $server->disconnect($this->fd, reason: $reason);
