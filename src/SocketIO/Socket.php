@@ -2,7 +2,6 @@
 
 namespace SwooleIO\SocketIO;
 
-use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\Constants\ReservedEvents;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\EngineIO\Connection;
@@ -32,6 +31,11 @@ class Socket
         io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
     }
 
+    public function cid(): string
+    {
+        return $this->cid;
+    }
+
     public static function connect(Connection $connection, string $namespace): Socket
     {
         return self::create($connection, $namespace);
@@ -42,15 +46,15 @@ class Socket
         return new Socket($connection, $namespace);
     }
 
+    public function connection(): Connection
+    {
+        return $this->connection;
+    }
+
     public function hook(object $listener): self
     {
         $this->hook = $listener;
         return $this;
-    }
-
-    public function cid(): string
-    {
-        return $this->cid;
     }
 
     public function write(mixed ...$data): bool
@@ -65,7 +69,7 @@ class Socket
 
     public function emit(string $event, mixed ...$data): bool
     {
-        if(in_array($event, self::reserved_events)) return false;
+        if (in_array($event, self::reserved_events)) return false;
         $packet = Packet::create(SioPacketType::event, $event, ...$data);
         return $this->connection->push($packet);
     }
