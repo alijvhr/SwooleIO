@@ -2,7 +2,6 @@
 
 namespace SwooleIO\SocketIO;
 
-use SwooleIO\Constants\ReservedEvents;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
