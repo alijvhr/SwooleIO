@@ -33,7 +33,7 @@ class Connection
     protected string $pid;
     protected ConnectionStatus $status = ConnectionStatus::disconnected;
     protected ?Transport $upgrade;
-    protected array $timers;
+    public array $timers;
 
     public function __construct(protected string $sid)
     {
