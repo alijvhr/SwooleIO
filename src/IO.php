@@ -157,6 +157,7 @@ class IO extends Singleton implements LoggerAwareInterface
         foreach ($this->endpoints as $endpoint) {
             if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
                 $this->log()->info("fix $endpoint[0]");
+                mkdir(dirname($endpoint[0]), 0644, true);
                 chmod($endpoint[0], 0777);
             }
         }
