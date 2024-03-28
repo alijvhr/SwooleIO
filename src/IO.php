@@ -136,7 +136,7 @@ class IO extends Singleton implements LoggerAwareInterface
         PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker', $this);
     }
 
-    public function on(string $event, callable $callback): Nsp
+    public function on(string $event, callable $callback): Psr\Event\ListenerProvider
     {
         return Nsp::get('/')->on($event, $callback);
     }
@@ -189,5 +189,10 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         $this->log()->info("shutting down");
         $this->server->shutdown();
+    }
+
+    public function serverSideEmit(string $workerId, array $data): bool
+    {
+        return $this->server->sendMessage($workerId, serialize($data));
     }
 }

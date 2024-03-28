@@ -75,9 +75,10 @@ class Packet extends EioPacket
         return $this->namespace;
     }
 
-    public function setNamespace(string $namespace = '/'): string
+    public function setNamespace(string $namespace = '/'): self
     {
-        return $this->namespace = $namespace;
+        $this->namespace = $namespace;
+        return $this;
     }
 
     /**

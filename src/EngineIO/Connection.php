@@ -22,10 +22,10 @@ class Connection
     /** @var Connection[] */
     protected static array $Connections = [];
     public ?int $writable = null;
+    public array $timers;
     protected ServerRequestInterface $request;
     protected int $fd = -1;
     protected Transport $transport = Transport::polling;
-
     /** @var string[] $buffer */
     protected array $buffer = [];
     /** @var Socket[] */
@@ -33,7 +33,6 @@ class Connection
     protected string $pid;
     protected ConnectionStatus $status = ConnectionStatus::disconnected;
     protected ?Transport $upgrade;
-    public array $timers;
 
     public function __construct(protected string $sid)
     {
@@ -150,6 +149,7 @@ class Connection
                             $socket->emitReserved(SioPacketType::connect, ['sid' => $socket->cid()]);
                         } else
                             $socket->emitReserved(SioPacketType::connect_error, ['message' => 'Invalid Namespace']);
+                        $this->sockets[$nsp] = $socket;
                     } else break;
                 } elseif (isset($this->sockets[$nsp])) $socket = $this->sockets[$nsp];
                 else break;
@@ -274,6 +274,11 @@ class Connection
     public function pid(): string
     {
         return $this->pid;
+    }
+
+    public function socket(string $nsp): ?Socket
+    {
+        return $this->sockets[$nsp]?? null;
     }
 
 }

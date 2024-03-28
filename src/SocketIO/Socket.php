@@ -69,7 +69,7 @@ class Socket
     public function emit(string $event, mixed ...$data): bool
     {
         if (in_array($event, self::reserved_events)) return false;
-        $packet = Packet::create(SioPacketType::event, $event, ...$data);
+        $packet = Packet::create(SioPacketType::event, $event, ...$data)->setNamespace($this->nsp);
         return $this->connection->push($packet);
     }
 
@@ -97,7 +97,7 @@ class Socket
 
     public function emitReserved(SioPacketType $type, mixed $data): bool
     {
-        $packet = Packet::create($type, $data);
+        $packet = Packet::create($type, $data)->setNamespace($this->nsp);
         return $this->connection->push($packet);
     }
 
