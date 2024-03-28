@@ -96,7 +96,9 @@ class IO extends Singleton implements LoggerAwareInterface
     public function start(string $path = '/socket.io'): bool
     {
         $this->path = $path;
-        [$host, $port, $sockType] = reset($this->endpoints) ?: ($this->endpoints[] = ['0.0.0.0', 80, Constant::SOCK_TCP]);
+        if (!$this->endpoints)
+            $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
+        [$host, $port, $sockType] = $default ?? reset($this->endpoints);
         $this->server = $server = new WebsocketServer($host, $port, Server::POOL_MODE, $sockType);
         $server->set([
             'task_worker_num' => self::$cpus,
@@ -110,8 +112,11 @@ class IO extends Singleton implements LoggerAwareInterface
             'send_yield' => true,
             'websocket_compression' => true
         ]);
-        foreach ($this->endpoints as $endpoint)
-            $this->server->addlistener(...$endpoint);
+        if (isset($default))
+            $this->endpoints[] = $default;
+        else
+            foreach ($this->endpoints as $endpoint)
+                $this->server->addlistener(...$endpoint);
         $this->defaultHooks($server);
         $this->server->after(50, [$this, 'onStart']);
         return $this->server->start();
@@ -157,7 +162,9 @@ class IO extends Singleton implements LoggerAwareInterface
         foreach ($this->endpoints as $endpoint) {
             if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
                 $this->log()->info("fix $endpoint[0]");
-                mkdir(dirname($endpoint[0]), 0644, true);
+                $dir = dirname($endpoint[0]);
+                if (!is_dir($dir))
+                    mkdir($dir, 0644, true);
                 chmod($endpoint[0], 0777);
             }
         }
