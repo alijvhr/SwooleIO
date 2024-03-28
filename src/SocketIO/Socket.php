@@ -2,6 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
+use Serializable;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
@@ -24,7 +25,7 @@ class Socket
     protected array $rooms = [];
     protected object $hook;
 
-    public function __construct(protected Connection $connection, protected string $nsp)
+    public function __construct(protected Connection $connection, protected string $nsp, protected mixed $auth = '')
     {
         $this->cid = io()->generateSid();
         io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
@@ -43,6 +44,17 @@ class Socket
     public static function create(Connection $connection, string $namespace): Socket
     {
         return new Socket($connection, $namespace);
+    }
+
+    /**
+     * @param mixed $auth
+     * @return string|Serializable|Socket
+     */
+    public function auth(string|Serializable $auth = null): string|Serializable|Socket
+    {
+        if (!isset($auth)) return $this->auth;
+        $this->auth = $auth;
+        return $this;
     }
 
     public function connection(): Connection
