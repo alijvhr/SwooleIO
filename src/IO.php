@@ -96,7 +96,7 @@ class IO extends Singleton implements LoggerAwareInterface
     public function start(string $path = '/socket.io'): bool
     {
         $this->path = $path;
-        [$host, $port, $sockType] = reset($this->endpoints) ?? $this->endpoints[] = ['0.0.0.0', 80, Constant::SOCK_TCP];
+        [$host, $port, $sockType] = reset($this->endpoints) ?: ($this->endpoints[] = ['0.0.0.0', 80, Constant::SOCK_TCP]);
         $this->server = $server = new WebsocketServer($host, $port, Server::POOL_MODE, $sockType);
         $server->set([
             'task_worker_num' => self::$cpus,
@@ -175,5 +175,11 @@ class IO extends Singleton implements LoggerAwareInterface
     public function getServerID(): string
     {
         return self::$serverID ?? '';
+    }
+
+    public function stop(): void
+    {
+        $this->log()->info("shutting down");
+        $this->server->shutdown();
     }
 }
