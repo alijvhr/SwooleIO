@@ -43,6 +43,7 @@ class IO extends Singleton implements LoggerAwareInterface
      */
     public function init(): void
     {
+        $this->path = '/socket.io';
         self::$serverID = substr(uuid(), -17);
         self::$cpus = Util::getCPUNum();
         $this->logger = new FallbackLogger();
@@ -72,9 +73,11 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->server;
     }
 
-    public function path(): string
+    public function path(string $path = null): string|self
     {
-        return $this->path;
+        if (!isset($path)) return $this->path;
+        $this->path = $path;
+        return $this;
     }
 
     public function dispatch_func(Server $server, int $fd, int $type, string $data = null): int
@@ -98,9 +101,8 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables;
     }
 
-    public function start(string $path = '/socket.io'): bool
+    public function start(callable $after = null): bool
     {
-        $this->path = $path;
         if (!$this->endpoints)
             $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
         [$host, $port, $sockType] = $default ?? reset($this->endpoints);
@@ -122,8 +124,7 @@ class IO extends Singleton implements LoggerAwareInterface
         else
             foreach ($this->endpoints as $endpoint)
                 $this->server->addlistener(...$endpoint);
-        $this->defaultHooks($server);
-        $this->server->after(50, [$this, 'onStart']);
+        $this->defaultHooks($server, $after);
         return $this->server->start();
     }
 
@@ -131,9 +132,21 @@ class IO extends Singleton implements LoggerAwareInterface
      * @param WebsocketServer $server
      * @return void
      */
-    protected function defaultHooks(WebsocketServer $server): void
+    protected function defaultHooks(WebsocketServer $server, callable $after = null): void
     {
-        $server->on('Start', [$this, 'onStart']);
+        $server->on('Start', function () use ($after) {
+            foreach ($this->endpoints as $endpoint) {
+                if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
+                    $this->log()->info("fix $endpoint[0]");
+                    $dir = dirname($endpoint[0]);
+                    if (!is_dir($dir))
+                        mkdir($dir, 0644, true);
+                    chmod($endpoint[0], 0777);
+                }
+            }
+            if (isset($after))
+                $after();
+        });
         $this->reqHandler = Http::register($server)->handler;
         WebSocket::register($server);
         Task::register($server);
@@ -144,6 +157,11 @@ class IO extends Singleton implements LoggerAwareInterface
     public function on(string $event, callable $callback): Psr\Event\ListenerProvider
     {
         return Nsp::get('/')->on($event, $callback);
+    }
+
+    public function log(): ?LoggerInterface
+    {
+        return $this->logger;
     }
 
     public function listen(string $host, int $port, int $sockType): self
@@ -160,24 +178,6 @@ class IO extends Singleton implements LoggerAwareInterface
     public function close(int $fd): bool
     {
         return $this->server->close($fd);
-    }
-
-    public function onStart(): void
-    {
-        foreach ($this->endpoints as $endpoint) {
-            if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
-                $this->log()->info("fix $endpoint[0]");
-                $dir = dirname($endpoint[0]);
-                if (!is_dir($dir))
-                    mkdir($dir, 0644, true);
-                chmod($endpoint[0], 0777);
-            }
-        }
-    }
-
-    public function log(): ?LoggerInterface
-    {
-        return $this->logger;
     }
 
     public function generateSid(): string
