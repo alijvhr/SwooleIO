@@ -5,6 +5,12 @@ namespace SwooleIO\SocketIO;
 use SwooleIO\Constants\SioPacketType;
 use function SwooleIO\io;
 
+/**
+ * @property-read $sid
+ * @property-read $workerId
+ * @property-read $nsp
+ * @property-read $auth
+ */
 class RemoteSocket
 {
 
