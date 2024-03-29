@@ -8,7 +8,7 @@ use function SwooleIO\io;
 class RemoteSocket
 {
 
-    public function __construct(protected string $sid, protected string $workerId, protected string $nsp = '/', protected int|string $auth = '')
+    public function __construct(protected string $sid, protected string $workerId, protected string $nsp = '/', protected string|object $auth = '')
     {
 
     }
