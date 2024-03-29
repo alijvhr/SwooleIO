@@ -101,7 +101,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables;
     }
 
-    public function start(callable $after = null): bool
+    public function start(callable $beforeStart = null): bool
     {
         if (!$this->endpoints)
             $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
@@ -124,18 +124,19 @@ class IO extends Singleton implements LoggerAwareInterface
         else
             foreach ($this->endpoints as $endpoint)
                 $this->server->addlistener(...$endpoint);
-        $this->defaultHooks($server, $after);
+        $this->defaultHooks($server);
+        if (isset($beforeStart))
+            $beforeStart($server);
         return $this->server->start();
     }
 
     /**
      * @param WebsocketServer $server
-     * @param callable|null $after
      * @return void
      */
-    protected function defaultHooks(WebsocketServer $server, callable $after = null): void
+    protected function defaultHooks(WebsocketServer $server): void
     {
-        $server->on('Start', function () use ($after) {
+        $server->on('Start', function (): void {
             foreach ($this->endpoints as $endpoint) {
                 if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
                     $this->log()->info("fix $endpoint[0]");
@@ -145,8 +146,6 @@ class IO extends Singleton implements LoggerAwareInterface
                     chmod($endpoint[0], 0777);
                 }
             }
-            if (isset($after))
-                $after();
         });
         $this->reqHandler = Http::register($server)->handler;
         WebSocket::register($server);
