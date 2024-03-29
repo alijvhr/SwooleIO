@@ -130,6 +130,7 @@ class IO extends Singleton implements LoggerAwareInterface
 
     /**
      * @param WebsocketServer $server
+     * @param callable|null $after
      * @return void
      */
     protected function defaultHooks(WebsocketServer $server, callable $after = null): void
