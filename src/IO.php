@@ -93,6 +93,11 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables->get($name);
     }
 
+    public function tables(): TableContainer
+    {
+        return $this->tables;
+    }
+
     public function start(string $path = '/socket.io'): bool
     {
         $this->path = $path;
