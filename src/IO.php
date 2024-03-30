@@ -101,7 +101,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables;
     }
 
-    public function start(callable $beforeStart = null): bool
+    public function start(callable $beforeStart = null, callable $afterStart = null): bool
     {
         if (!$this->endpoints)
             $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
@@ -125,6 +125,18 @@ class IO extends Singleton implements LoggerAwareInterface
             foreach ($this->endpoints as $endpoint)
                 $this->server->addlistener(...$endpoint);
         $this->defaultHooks($server);
+        $server->on('Start', function (Server $server) use ($afterStart) {
+            foreach ($this->endpoints as $endpoint) {
+                if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
+                    $this->log()->info("fix $endpoint[0]");
+                    $dir = dirname($endpoint[0]);
+                    if (!is_dir($dir))
+                        mkdir($dir, 0644, true);
+                    chmod($endpoint[0], 0777);
+                }
+            }
+            $afterStart($server);
+        });
         if (isset($beforeStart))
             $beforeStart($server);
         return $this->server->start();
@@ -136,17 +148,6 @@ class IO extends Singleton implements LoggerAwareInterface
      */
     protected function defaultHooks(WebsocketServer $server): void
     {
-        $server->on('Start', function (): void {
-            foreach ($this->endpoints as $endpoint) {
-                if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
-                    $this->log()->info("fix $endpoint[0]");
-                    $dir = dirname($endpoint[0]);
-                    if (!is_dir($dir))
-                        mkdir($dir, 0644, true);
-                    chmod($endpoint[0], 0777);
-                }
-            }
-        });
         $this->reqHandler = Http::register($server)->handler;
         WebSocket::register($server);
         Task::register($server);
