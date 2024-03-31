@@ -2,6 +2,7 @@
 
 namespace SwooleIO\SocketIO;
 
+use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
 
@@ -92,7 +93,7 @@ class Nsp
         //TODO: Remote Socket needed
     }
 
-    public function compress(bool $compress= true):BroadcastOperator
+    public function compress(bool $compress = true): BroadcastOperator
     {
         return (new BroadcastOperator($this))->compress($compress);
     }
@@ -102,35 +103,41 @@ class Nsp
         return (new BroadcastOperator($this))->volatile();
     }
 
-    public function local():BroadcastOperator
+    public function local(): BroadcastOperator
     {
         return (new BroadcastOperator($this))->local();
     }
 
-    public function timeout($timeout):BroadcastOperator
+    public function timeout($timeout): BroadcastOperator
     {
         return (new BroadcastOperator($this))->timeout($timeout);
     }
 
-    public function disconnectSockets($close = false):bool
+    public function disconnectSockets($close = false): bool
     {
         (new BroadcastOperator($this))->disconnectSockets($close);
     }
 
+    /**
+     * @throws ConnectionError
+     */
     public function connect(Socket $socket, Packet $packet): void
     {
-        go(function (Socket $socket, Packet $packet) {
-            $this->run($socket);
+        $connected = false;
+        $this->run($socket, function () use ($socket, $packet, &$connected) {
             $ev = new Event($socket, $packet);
             $ev->type = 'connection';
             $this->dispatch($ev);
-        }, $socket, $packet);
+            $connected = true;
+        });
+        if(!$connected)
+            throw new ConnectionError('Something gone wrong!');
     }
 
-    private function run(Socket $socket): void
+    private function run(Socket $socket, callable $connect): void
     {
         if ($fns = array_reverse($this->middlewares)) {
-            $next = fn($i, $soc, $next) => $fns[$i]($soc, fn() => isset($fns[$i + 1]) ? $next($i + 1, $soc, $next) : null);
+            $next = fn($i, $soc, $next) => $fns[$i]($soc, fn() => isset($fns[$i + 1]) ? $next($i + 1, $soc, $next) : $connect);
             $next(0, $socket, $next);
         }
     }

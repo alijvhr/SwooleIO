@@ -10,8 +10,8 @@ use OpenSwoole\Server;
 use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\Transport;
-use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\EngineIO\Connection;
+use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\Handler\NotFoundHandler;
@@ -65,7 +65,7 @@ class Http extends Hook
             }
 
         } else {
-            Connection::create($sid = $this->io->generateSid())->save(true);
+            Connection::create($sid = $this->io->generateSid())->save(true)->request(ServerRequest::from($request));
             return $response->write(EioPacket::create(EioPacketType::open, ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "pingInterval" => Connection::$pingInterval, "pingTimeout" => Connection::$pingTimeout])->encode());
         }
     }

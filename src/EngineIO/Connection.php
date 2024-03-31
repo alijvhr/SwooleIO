@@ -9,6 +9,7 @@ use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
+use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
@@ -144,11 +145,14 @@ class Connection
                 if ($packet->getSocketType() == SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
                         $socket = Socket::create($this, $nsp);
-                        if (Nsp::exists($nsp)) {
+                        try {
+                            if (!Nsp::exists($nsp))
+                                throw new ConnectionError('Invalid Namespace');
                             Nsp::get($nsp)->connect($socket, $packet);
                             $socket->emitReserved(SioPacketType::connect, ['sid' => $socket->cid()]);
-                        } else
-                            $socket->emitReserved(SioPacketType::connect_error, ['message' => 'Invalid Namespace']);
+                        } catch (ConnectionError $e) {
+                            $socket->emitReserved(SioPacketType::connect_error, ['message' => $e->getMessage()]);
+                        }
                         $this->sockets[$nsp] = $socket;
                     } else break;
                 } elseif (isset($this->sockets[$nsp])) $socket = $this->sockets[$nsp];
@@ -278,7 +282,7 @@ class Connection
 
     public function socket(string $nsp): ?Socket
     {
-        return $this->sockets[$nsp]?? null;
+        return $this->sockets[$nsp] ?? null;
     }
 
 }
