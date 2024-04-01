@@ -2,7 +2,6 @@
 
 namespace SwooleIO\SocketIO;
 
-use Serializable;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
@@ -25,8 +24,10 @@ class Socket
     protected array $rooms = [];
     protected object $hook;
 
-    public function __construct(protected Connection $connection, protected string $nsp, protected mixed $auth = '')
+    public function __construct(protected Connection $connection, protected string $nsp, mixed $auth = null)
     {
+        if (isset($auth))
+            $this->connection->auth($auth);
         $this->cid = io()->generateSid();
         io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
     }
@@ -41,20 +42,9 @@ class Socket
         return self::create($connection, $namespace);
     }
 
-    public static function create(Connection $connection, string $namespace): Socket
+    public static function create(Connection $connection, string $namespace, mixed $auth = null): Socket
     {
-        return new Socket($connection, $namespace);
-    }
-
-    /**
-     * @param mixed $auth
-     * @return string|Serializable|Socket
-     */
-    public function auth(string|Serializable $auth = null): string|Serializable|Socket
-    {
-        if (!isset($auth)) return $this->auth;
-        $this->auth = $auth;
-        return $this;
+        return new Socket($connection, $namespace, $auth);
     }
 
     public function connection(): Connection
@@ -98,7 +88,7 @@ class Socket
     public function receive(Packet $packet): void
     {
         $ev = new Event($this, $packet);
-        switch ($packet->getSocketType(1)) {
+        switch ($packet->getSocketType()) {
             case SioPacketType::event:
             case SioPacketType::binary_event:
                 $this->dispatch($ev);

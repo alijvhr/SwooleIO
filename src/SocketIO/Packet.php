@@ -123,7 +123,7 @@ class Packet extends EioPacket
         if (!$all) {
             $this->engine_type = EioPacketType::message;
             $id = $this->id ?? '';
-            $namespace = "$this->namespace,";
+            $namespace = $this->namespace != '/' ? "$this->namespace," : '';
             $data = isset($this->data) && $this->data ? json_encode($this->data) : '';
             $this->payload = $this->socket_type->value . $namespace . $id . $data;
         }
@@ -143,10 +143,11 @@ class Packet extends EioPacket
             $payload = json_decode($parts[5], true);
             $valid = false;
             switch ($this->socket_type) {
+                case SioPacketType::connect:
+                    $valid = true;
                 case SioPacketType::binary_ack:
                 case SioPacketType::ack:
-                case SioPacketType::connect:
-                    $valid = is_array($payload);
+                    $valid = $valid?: is_array($payload);
                     $this->data = $payload;
                     break;
                 case SioPacketType::disconnect:

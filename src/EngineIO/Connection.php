@@ -9,6 +9,7 @@ use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
+use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
@@ -24,6 +25,7 @@ class Connection
     protected static array $Connections = [];
     public ?int $writable = null;
     public array $timers;
+    protected mixed $auth = '';
     protected ServerRequestInterface $request;
     protected int $fd = -1;
     protected Transport $transport = Transport::polling;
@@ -134,17 +136,19 @@ class Connection
                     $this->upgrading(Transport::websocket);
                     if ($this->upgrade == Transport::websocket)
                         $server->push($this->fd, $pong->encode());
+                    if ($this->writable)
+                        $this->flush();
                 } else
                     $this->push($pong);
                 break;
             case EioPacketType::pong:
-                $this->resetTimeout();
+                $this->clearTimeout();
                 break;
             case EioPacketType::message:
                 $nsp = $packet->getNamespace();
                 if ($packet->getSocketType() == SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
-                        $socket = Socket::create($this, $nsp);
+                        $socket = Socket::create($this, $nsp, $packet->getData() ?: null);
                         try {
                             if (!Nsp::exists($nsp))
                                 throw new ConnectionError('Invalid Namespace');
@@ -188,8 +192,7 @@ class Connection
     {
         $connection = new Connection($sid);
         $connection->status = ConnectionStatus::connected;
-        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet), Packet::create(EioPacketType::ping));
-        $connection->resetTimeout();
+        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet) && $connection->resetTimeout(), Packet::create(EioPacketType::ping));
         if (isset($transport)) $connection->transport($transport)->save();
         return self::$Connections[$sid] = $connection;
     }
@@ -202,7 +205,12 @@ class Connection
 
     public function flush(): bool
     {
-        if (isset($this->upgrade)) return false;
+        if (isset($this->upgrade) && $this->writable) {
+            $response = Response::create($this->writable);
+            $response->write(EioPacket::create(EioPacketType::noop));
+            $response->end();
+            $this->writable = null;
+        }
         $server = io()->server();
         switch ($this->transport) {
             case Transport::polling:
@@ -238,9 +246,16 @@ class Connection
 
     protected function resetTimeout(): int|bool
     {
-        if ($timer_id = &$this->timers['timeout'])
-            Timer::clear($timer_id);
-        return $timer_id = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
+        $this->clearTimeout();
+        return $this->timers['timeout'] = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
+    }
+
+    protected function clearTimeout(): void
+    {
+        if (isset($this->timers['timeout'])) {
+            Timer::clear($this->timers['timeout']);
+            unset($this->timers['timeout']);
+        }
     }
 
     public function transport(Transport $transport = null): Transport|Connection
@@ -261,6 +276,18 @@ class Connection
     public static function connect(string $sid): Connection
     {
         return self::recover($sid) ?? self::create($sid);
+    }
+
+    /**
+     * @template Auth of string|object|array|null
+     * @param Auth $auth
+     * @return (Auth is null? Auth: Connection)
+     */
+    public function auth(string|object|array $auth = null): string|object|array
+    {
+        if (!isset($auth)) return $this->auth;
+        $this->auth = $auth;
+        return $this;
     }
 
     public function fd(int $fd = null): int|Connection

@@ -139,6 +139,7 @@ class IO extends Singleton implements LoggerAwareInterface
         });
         if (isset($beforeStart))
             $beforeStart($server);
+        $this->of('/');
         return $this->server->start();
     }
 

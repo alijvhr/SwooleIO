@@ -26,7 +26,7 @@ class RemoteSocket
     public static function from(Socket $socket): self
     {
         $conn = $socket->connection();
-        return new self($conn->sid(), $conn->transport(), io()->server()->getWorkerId(), $socket->nsp(), $socket->auth(), $conn->is(ConnectionStatus::upgraded)? $conn->fd(): null);
+        return new self($conn->sid(), $conn->transport(), io()->server()->getWorkerId(), $socket->nsp(), $conn->auth(), $conn->is(ConnectionStatus::upgraded)? $conn->fd(): null);
     }
 
     public function __get(string $name)

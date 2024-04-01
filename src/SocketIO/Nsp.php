@@ -137,9 +137,9 @@ class Nsp
     private function run(Socket $socket, callable $connect): void
     {
         if ($fns = array_reverse($this->middlewares)) {
-            $next = fn($i, $soc, $next) => $fns[$i]($soc, fn() => isset($fns[$i + 1]) ? $next($i + 1, $soc, $next) : $connect);
+            $next = fn($i, $soc, $next) => $fns[$i]($soc, fn() => isset($fns[$i + 1]) ? $next($i + 1, $soc, $next) : $connect());
             $next(0, $socket, $next);
-        }
+        } else $connect();
     }
 
     private function _createSocket($client, $auth)
