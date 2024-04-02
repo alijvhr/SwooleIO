@@ -6,8 +6,8 @@ use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
-use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
+use SwooleIO\Exceptions\InvalidPacketException;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
@@ -41,14 +41,14 @@ class WebSocket extends Hook
      */
     public function onMessage(Server $server, Frame $frame): void
     {
-        Connection::byFd($frame->fd)?->receive(Packet::from($frame->data));
+        try {
+            Connection::byFd($frame->fd)?->receive(Packet::from($frame->data));
+        } catch (InvalidPacketException $e) {
+        }
     }
 
     public function onClose(Server $server, int $fd): void
     {
-        $sock = Connection::byFd($fd);
-        if ($sock?->transport() == Transport::websocket) {
-            $sock->transport(Transport::polling);
-        }
+        Connection::byFd($fd)?->closing();
     }
 }

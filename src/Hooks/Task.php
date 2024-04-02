@@ -5,8 +5,7 @@ namespace SwooleIO\Hooks;
 use OpenSwoole\Server;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\Hook;
-use SwooleIO\Process\PipeEvent;
-use SwooleIO\Psr\Event\Event;
+use SwooleIO\Lib\SimpleEvent;
 
 class Task extends Hook
 {
@@ -17,7 +16,7 @@ class Task extends Hook
         if ($data[0] == 'send') {
             Connection::recover($data[1])?->push($data[2]);
         } else {
-            $this->target->dispatch(new PipeEvent($data[0], $data));
+            $this->target->dispatch(new SimpleEvent($data[0], $data));
         }
     }
 

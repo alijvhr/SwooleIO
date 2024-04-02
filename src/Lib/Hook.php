@@ -18,7 +18,6 @@ abstract class Hook
     {
         foreach ($this->all() as $event) {
             $this->target->on($event, [$this, "on$event"]);
-            $this->target->on(strtolower($event), [$this, "on$event"]);
         }
     }
 

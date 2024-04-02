@@ -125,9 +125,7 @@ class Nsp
     {
         $connected = false;
         $this->run($socket, function () use ($socket, $packet, &$connected) {
-            $ev = new Event($socket, $packet);
-            $ev->type = 'connection';
-            $this->dispatch($ev);
+            $this->dispatch(Event::create('connection',$socket, $packet));
             $connected = true;
         });
         if(!$connected)

@@ -2,11 +2,11 @@
 
 namespace SwooleIO\Process;
 
-use OpenSwoole\Constant;
 use OpenSwoole\Timer;
-use Psr\Log\LogLevel;
 use SwooleIO\IO;
 use SwooleIO\Lib\Process;
+use SwooleIO\Lib\SimpleEvent;
+use function SwooleIO\io;
 
 class Manager extends Process
 {
@@ -15,10 +15,13 @@ class Manager extends Process
     {
         IO::instance()->log()->info("manager started");
         Timer::tick(10000, fn() => gc_collect_cycles());
+        io()->dispatch(new SimpleEvent('managerStart'));
     }
 
-    public function exit()
+    public function exit(): void
     {
-        // TODO: Implement exit() method.
+        io()->dispatch(new SimpleEvent('managerStop'));
+        IO::instance()->log()->info("manager stopped");
+        Timer::clearAll();
     }
 }

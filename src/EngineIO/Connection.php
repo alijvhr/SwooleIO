@@ -19,8 +19,8 @@ use function SwooleIO\io;
 class Connection
 {
 
-    public static int $pingTimeout = 20000;
-    public static int $pingInterval = 25000;
+    public static int $pingTimeout = 7000;
+    public static int $pingInterval = 10000;
     /** @var Connection[] */
     protected static array $Connections = [];
     public ?int $writable = null;
@@ -123,6 +123,8 @@ class Connection
     {
         $io = io();
         $server = $io->server();
+        if ($this->transport() == Transport::polling)
+            $this->resetTimeout();
         switch ($packet->getEngineType()) {
             case EioPacketType::close:
                 $this->status = ConnectionStatus::closing;
@@ -142,7 +144,7 @@ class Connection
                     $this->push($pong);
                 break;
             case EioPacketType::pong:
-                $this->clearTimeout();
+                $this->clearTimeout('pong');
                 break;
             case EioPacketType::message:
                 $nsp = $packet->getNamespace();
@@ -165,9 +167,33 @@ class Connection
                 break;
             case EioPacketType::upgrade:
                 $this->transport($this->upgrade);
+                $this->clearTimeout('timeout');
                 $this->upgrade = null;
                 $this->status = ConnectionStatus::upgraded;
+                $this->flush();
                 break;
+        }
+    }
+
+    public function transport(Transport $transport = null): Transport|Connection
+    {
+        if (!isset($transport)) return $this->transport;
+        if ($transport != $this->transport)
+            $this->transport = $transport;
+        return $this;
+    }
+
+    public function resetTimeout(): int|bool
+    {
+        $this->clearTimeout('timeout');
+        return $this->timers['timeout'] = Timer::after(self::$pingTimeout + self::$pingInterval + 1000, fn() => $this->disconnect('Timed out'));
+    }
+
+    protected function clearTimeout(string $name): void
+    {
+        if (isset($this->timers[$name])) {
+            Timer::clear($this->timers[$name]);
+            unset($this->timers[$name]);
         }
     }
 
@@ -181,6 +207,7 @@ class Connection
         $server = io()->server();
         if ($server->isEstablished($this->fd))
             $server->disconnect($this->fd, reason: $reason);
+        $this->status = ConnectionStatus::closed;
     }
 
     public function close(string $namespace): void
@@ -192,7 +219,7 @@ class Connection
     {
         $connection = new Connection($sid);
         $connection->status = ConnectionStatus::connected;
-        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet) && $connection->resetTimeout(), Packet::create(EioPacketType::ping));
+        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet) && $connection->resetPingTimeout(), Packet::create(EioPacketType::ping));
         if (isset($transport)) $connection->transport($transport)->save();
         return self::$Connections[$sid] = $connection;
     }
@@ -219,6 +246,7 @@ class Connection
                     if ($response->write(implode(chr(30), $this->buffer)))
                         $this->buffer = [];
                     $response->end();
+                    $this->resetTimeout();
                     $this->writable = null;
                 }
                 return true;
@@ -244,26 +272,10 @@ class Connection
         return false;
     }
 
-    protected function resetTimeout(): int|bool
+    protected function resetPingTimeout(): int|bool
     {
-        $this->clearTimeout();
-        return $this->timers['timeout'] = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
-    }
-
-    protected function clearTimeout(): void
-    {
-        if (isset($this->timers['timeout'])) {
-            Timer::clear($this->timers['timeout']);
-            unset($this->timers['timeout']);
-        }
-    }
-
-    public function transport(Transport $transport = null): Transport|Connection
-    {
-        if (!isset($transport)) return $this->transport;
-        if ($transport != $this->transport)
-            $this->transport = $transport;
-        return $this;
+        $this->clearTimeout('pong');
+        return $this->timers['pong'] = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
     }
 
     public function upgrading(Transport $transport): self
@@ -310,6 +322,12 @@ class Connection
     public function socket(string $nsp): ?Socket
     {
         return $this->sockets[$nsp] ?? null;
+    }
+
+    public function closing(): void
+    {
+        $this->status = ConnectionStatus::closing;
+        $this->resetTimeout();
     }
 
 }

@@ -2,7 +2,6 @@
 
 namespace SwooleIO\SocketIO;
 
-use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
 use function SwooleIO\io;
@@ -15,7 +14,7 @@ use function SwooleIO\io;
  * @property-read $fd
  * @property-read $transport
  */
-class RemoteSocket
+class RemoteSocket implements SocketInterface
 {
 
     public function __construct(protected string $sid, protected Transport $transport, protected string $workerId, protected string $nsp = '/', protected string|object $auth = '', protected ?int $fd = null)
@@ -25,8 +24,7 @@ class RemoteSocket
 
     public static function from(Socket $socket): self
     {
-        $conn = $socket->connection();
-        return new self($conn->sid(), $conn->transport(), io()->server()->getWorkerId(), $socket->nsp(), $conn->auth(), $conn->is(ConnectionStatus::upgraded)? $conn->fd(): null);
+        return new self($socket->sid(), $socket->transport(), $socket->workerId(), $socket->nsp(), $socket->auth(), $socket->fd());
     }
 
     public function __get(string $name)
@@ -37,8 +35,38 @@ class RemoteSocket
     public function emit(string $event, mixed ...$data): bool
     {
         $io = io();
+        $server = $io->server();
         $packet = Packet::create(SioPacketType::event, $event, ...$data)->setNamespace($this->nsp);
-        return $io->server()->push($this->fd, $packet->encode()) || $io->serverSideEmit($this->workerId, ['send', $this->sid, $packet]);
+        return $this->transport == Transport::websocket && $server->isEstablished($this->fd) && $server->push($this->fd, $packet->encode()) || $io->serverSideEmit($this->workerId, ['send', $this->sid, $packet]);
     }
 
+    public function sid(): string
+    {
+        return $this->sid;
+    }
+
+    public function auth(): array|object|string
+    {
+        return $this->auth;
+    }
+
+    public function transport(): Transport
+    {
+        return $this->transport;
+    }
+
+    public function workerId(): int
+    {
+        return $this->workerId;
+    }
+
+    public function nsp(): string
+    {
+        return $this->nsp;
+    }
+
+    public function fd(): ?int
+    {
+        return $this->fd;
+    }
 }

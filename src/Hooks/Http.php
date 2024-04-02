@@ -45,18 +45,18 @@ class Http extends Hook
     {
         $sid = &$request->get['sid'];
         if ($request->get['transport'] == 'polling' && $sid) {
-            $socket = Connection::recover($sid);
-            if (isset($socket)) {
+            $connection = Connection::recover($sid);
+            if (isset($connection)) {
                 if ($request->getMethod() == 'POST') {
-                    $socket->receive(Packet::from($request->getContent()));
+                    $connection->receive(Packet::from($request->getContent()));
                     return $response->write('ok');
                 } else {
-                    if ($socket->transport() != Transport::polling || $socket->is(ConnectionStatus::upgrading, ConnectionStatus::upgraded))
+                    if ($connection->transport() != Transport::polling || $connection->is(ConnectionStatus::upgrading, ConnectionStatus::upgraded))
                         return $response->write(EioPacket::create(EioPacketType::noop)->encode());
                     else {
-                        $socket->writable = $response->fd;
+                        $connection->writable = $response->fd;
                         $response->detach();
-                        return $socket->flush();
+                        return $connection->flush();
                     }
                 }
             } else {

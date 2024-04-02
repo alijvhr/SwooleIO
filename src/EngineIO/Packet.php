@@ -67,15 +67,14 @@ class Packet implements \Iterator
         return $this;
     }
 
+    /**
+     * @throws InvalidPacketException
+     */
     public static function from(string $packet): ?static
     {
-        try {
-            $object = new static($packet);
-            $object->parse();
-            return $object;
-        } catch (InvalidPacketException $e) {
-            return null;
-        }
+        $object = new static($packet);
+        $object->parse();
+        return $object;
     }
 
     public static function create(EioPacketType $type, ...$data): self

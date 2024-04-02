@@ -44,7 +44,6 @@ class PassiveProcess
     {
         if (isset($this->process))
             $this->process->exit();
-
     }
 
 }

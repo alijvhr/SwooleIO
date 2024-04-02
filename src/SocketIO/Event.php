@@ -9,6 +9,14 @@ class Event extends \SwooleIO\Psr\Event\Event
 
     public function __construct(public Socket $socket, public ?Packet $packet = null)
     {
-        $this->type = $this->packet->getEvent();
+        if (isset($packet))
+            $this->type = $this->packet?->getEvent();
+    }
+
+    public static function create(string $type, Socket $socket, ?Packet $packet = null): static
+    {
+        $event = new static($socket, $packet);
+        $event->type = $type;
+        return $event;
     }
 }

@@ -3,11 +3,12 @@
 namespace SwooleIO\SocketIO;
 
 use SwooleIO\Constants\SioPacketType;
+use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
 use function SwooleIO\io;
 
-class Socket
+class Socket implements SocketInterface
 {
 
     use EventHandler;
@@ -32,9 +33,19 @@ class Socket
         io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
     }
 
+    public function auth(): array|object|string
+    {
+        return $this->connection->auth();
+    }
+
     public function cid(): string
     {
         return $this->cid;
+    }
+
+    public function sid(): string
+    {
+        return $this->connection->sid();
     }
 
     public static function connect(Connection $connection, string $namespace): Socket
@@ -77,6 +88,7 @@ class Socket
 
     public function close(): void
     {
+        $this->dispatch(Event::create('disconnect', $this));
         $this->connection->close($this->nsp);
     }
 
@@ -103,9 +115,18 @@ class Socket
         return $this->connection->push($packet);
     }
 
-    public function socket(): Connection
+    public function transport(): Transport
     {
-        return $this->connection;
+        return $this->connection->transport();
     }
 
+    public function workerId(): int
+    {
+        return io()->server()->getWorkerId();
+    }
+
+    public function fd(): ?int
+    {
+        return $this->connection->fd();
+    }
 }

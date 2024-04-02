@@ -4,6 +4,7 @@ namespace SwooleIO;
 
 use OpenSwoole\Constant;
 use OpenSwoole\Server;
+use OpenSwoole\Timer;
 use OpenSwoole\Util;
 use OpenSwoole\WebSocket\Server as WebsocketServer;
 use Psr\Http\Server\MiddlewareInterface;
@@ -14,7 +15,9 @@ use SwooleIO\Exceptions\DuplicateTableNameException;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
 use SwooleIO\Hooks\WebSocket;
+use SwooleIO\Lib\EventHandler;
 use SwooleIO\Lib\PassiveProcess;
+use SwooleIO\Lib\SimpleEvent;
 use SwooleIO\Lib\Singleton;
 use SwooleIO\Memory\Table;
 use SwooleIO\Memory\TableContainer;
@@ -26,6 +29,7 @@ class IO extends Singleton implements LoggerAwareInterface
 {
 
     use LoggerAwareTrait;
+    use EventHandler;
 
     protected static string $serverID;
     protected static int $cpus;
@@ -101,7 +105,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables;
     }
 
-    public function start(callable $beforeStart = null, callable $afterStart = null): bool
+    public function start(): bool
     {
         if (!$this->endpoints)
             $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
@@ -117,7 +121,8 @@ class IO extends Singleton implements LoggerAwareInterface
             'task_enable_coroutine' => true,
             'enable_coroutine' => true,
             'send_yield' => true,
-            'websocket_compression' => true
+            'websocket_compression' => true,
+            'log_level' => Constant::LOG_ERROR,
         ]);
         if (isset($default))
             $this->endpoints[] = $default;
@@ -125,7 +130,7 @@ class IO extends Singleton implements LoggerAwareInterface
             foreach ($this->endpoints as $endpoint)
                 $this->server->addlistener(...$endpoint);
         $this->defaultHooks($server);
-        $server->on('Start', function (Server $server) use ($afterStart) {
+        $server->on('Start', function (Server $server) {
             foreach ($this->endpoints as $endpoint) {
                 if (in_array($endpoint[2], [Constant::UNIX_STREAM, Constant::UNIX_DGRAM])) {
                     $this->log()->info("fix $endpoint[0]");
@@ -135,10 +140,13 @@ class IO extends Singleton implements LoggerAwareInterface
                     chmod($endpoint[0], 0777);
                 }
             }
-            $afterStart($server);
+            $this->dispatch(new SimpleEvent('start'));
         });
-        if (isset($beforeStart))
-            $beforeStart($server);
+        $server->on('shutdown', function () {
+            Timer::clearAll();
+            $this->dispatch(new SimpleEvent('shutdown'));
+        });
+        $this->dispatch(new SimpleEvent('load'));
         $this->of('/');
         return $this->server->start();
     }
@@ -156,25 +164,20 @@ class IO extends Singleton implements LoggerAwareInterface
         PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker', $this);
     }
 
-    public function on(string $event, callable $callback): Psr\Event\ListenerProvider
-    {
-        return Nsp::get('/')->on($event, $callback);
-    }
-
     public function log(): ?LoggerInterface
     {
         return $this->logger;
+    }
+
+    public function of(string $namespace): Nsp
+    {
+        return Nsp::get($namespace);
     }
 
     public function listen(string $host, int $port, int $sockType): self
     {
         $this->endpoints[] = [$host, $port, $sockType];
         return $this;
-    }
-
-    public function of(string $namespace): Nsp
-    {
-        return Nsp::get($namespace);
     }
 
     public function close(int $fd): bool
@@ -200,6 +203,6 @@ class IO extends Singleton implements LoggerAwareInterface
 
     public function serverSideEmit(string $workerId, array $data): bool
     {
-        return $this->server->sendMessage($workerId, serialize($data));
+        return $this->server->sendMessage(serialize($data), $workerId);
     }
 }

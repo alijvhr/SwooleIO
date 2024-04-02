@@ -21,13 +21,16 @@ trait EventHandler
     public function dispatch(StoppableEventInterface $event): StoppableEventInterface
     {
         if(!isset($this->listener)) $this->initializeEvHandler();
+        if(isset($event->type))
+            $event->type = strtolower($event->type);
         return $this->dispatcher->dispatch($event);
     }
 
-    public function on(string $event, callable $listener): ListenerProvider
+    public function on(string $event, callable $listener): static
     {
         if(!isset($this->listener)) $this->initializeEvHandler();
-        return $this->listener->addListener($event, $listener);
+        $this->listener->addListener(strtolower($event), $listener);
+        return $this;
     }
 
 }
