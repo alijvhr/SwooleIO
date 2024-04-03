@@ -65,7 +65,7 @@ class Http extends Hook
             }
 
         } else {
-            Connection::create($sid = $this->io->generateSid())->save(true)->request(ServerRequest::from($request));
+            Connection::create($sid = $this->io->generateSid())->save(true)->request($request);
             return $response->write(EioPacket::create(EioPacketType::open, ["sid" => $sid, "upgrades" => array_slice($this->io->getTransports(), 1), "maxPayload" => 1000000, "pingInterval" => Connection::$pingInterval, "pingTimeout" => Connection::$pingTimeout])->encode());
         }
     }

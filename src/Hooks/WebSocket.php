@@ -2,7 +2,6 @@
 
 namespace SwooleIO\Hooks;
 
-use OpenSwoole\Core\Psr\ServerRequest;
 use OpenSwoole\Http\Request;
 use OpenSwoole\WebSocket\Frame;
 use OpenSwoole\WebSocket\Server;
@@ -31,7 +30,7 @@ class WebSocket extends Hook
 
     public function onOpen(Server $server, Request $request): void
     {
-        Connection::recover($request->get['sid'])?->request(ServerRequest::from($request))->fd($request->fd);
+        Connection::recover($request->get['sid'])?->request($request)->fd($request->fd);
     }
 
     /**

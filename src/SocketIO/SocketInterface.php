@@ -17,4 +17,8 @@ interface SocketInterface
 
     public function fd(): ?int;
 
+    public function ip();
+
+    public function ua();
+
 }

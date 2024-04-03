@@ -2,6 +2,8 @@
 
 namespace SwooleIO\EngineIO;
 
+use OpenSwoole\Core\Psr\ServerRequest;
+use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
 use OpenSwoole\Timer;
 use Psr\Http\Message\ServerRequestInterface;
@@ -33,7 +35,7 @@ class Connection
     protected array $buffer = [];
     /** @var Socket[] */
     protected array $sockets = [];
-    protected string $pid;
+    protected string $pid, $ip = '[null]', $ua = '[null]';
     protected ConnectionStatus $status = ConnectionStatus::disconnected;
     protected ?Transport $upgrade;
 
@@ -112,10 +114,12 @@ class Connection
         return $this;
     }
 
-    public function request(ServerRequestInterface $request = null): ServerRequestInterface|Connection
+    public function request(Request $request = null): ServerRequestInterface|Connection
     {
         if (!isset($request)) return $this->request;
-        $this->request = $request;
+        $this->request = ServerRequest::from($request);
+        $this->ua = $request->header['user-agent'] ?? '[null]';
+        $this->ip = explode(',', $request->header['x-forwarded-for']??'')[0]?? $request->server['remote_addr']?? '[null]';
         return $this;
     }
 
@@ -328,6 +332,16 @@ class Connection
     {
         $this->status = ConnectionStatus::closing;
         $this->resetTimeout();
+    }
+
+    public function ip(): string
+    {
+        return $this->ip;
+    }
+
+    public function ua(): string
+    {
+        return $this->ua;
     }
 
 }

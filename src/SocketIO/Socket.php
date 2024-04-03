@@ -58,6 +58,11 @@ class Socket implements SocketInterface
         return new Socket($connection, $namespace, $auth);
     }
 
+    public function remote(): RemoteSocket
+    {
+        return RemoteSocket::from($this);
+    }
+
     public function connection(): Connection
     {
         return $this->connection;
@@ -128,5 +133,15 @@ class Socket implements SocketInterface
     public function fd(): ?int
     {
         return $this->connection->fd();
+    }
+
+    public function ip()
+    {
+        return $this->connection->ip();
+    }
+
+    public function ua()
+    {
+        return $this->connection->ua();
     }
 }

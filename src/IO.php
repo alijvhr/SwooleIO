@@ -3,6 +3,7 @@
 namespace SwooleIO;
 
 use OpenSwoole\Constant;
+use OpenSwoole\Runtime;
 use OpenSwoole\Server;
 use OpenSwoole\Timer;
 use OpenSwoole\Util;
@@ -124,6 +125,7 @@ class IO extends Singleton implements LoggerAwareInterface
             'websocket_compression' => true,
             'log_level' => Constant::LOG_ERROR,
         ]);
+        debug(Runtime::getHookFlags());
         if (isset($default))
             $this->endpoints[] = $default;
         else

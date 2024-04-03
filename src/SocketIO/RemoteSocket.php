@@ -17,14 +17,14 @@ use function SwooleIO\io;
 class RemoteSocket implements SocketInterface
 {
 
-    public function __construct(protected string $sid, protected Transport $transport, protected string $workerId, protected string $nsp = '/', protected string|object $auth = '', protected ?int $fd = null)
+    public function __construct(protected string $sid, protected Transport $transport, protected string $workerId, protected string $ip, protected string $ua, protected string $nsp = '/', protected string|object $auth = '', protected ?int $fd = null)
     {
 
     }
 
     public static function from(Socket $socket): self
     {
-        return new self($socket->sid(), $socket->transport(), $socket->workerId(), $socket->nsp(), $socket->auth(), $socket->fd());
+        return new self($socket->sid(), $socket->transport(), $socket->workerId(), $socket->ip(), $socket->ua(), $socket->nsp(), $socket->auth(), $socket->fd());
     }
 
     public function __get(string $name)
@@ -68,5 +68,15 @@ class RemoteSocket implements SocketInterface
     public function fd(): ?int
     {
         return $this->fd;
+    }
+
+    public function ip()
+    {
+        // TODO: Implement ip() method.
+    }
+
+    public function ua()
+    {
+        // TODO: Implement ua() method.
     }
 }
