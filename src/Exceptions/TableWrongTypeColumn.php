@@ -2,7 +2,9 @@
 
 namespace SwooleIO\Exceptions;
 
-class TableWrongTypeColumn extends \Exception
+use Exception;
+
+class TableWrongTypeColumn extends Exception
 {
 
 }

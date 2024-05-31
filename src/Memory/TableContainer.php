@@ -2,9 +2,11 @@
 
 namespace SwooleIO\Memory;
 
+use Countable;
+use Iterator;
 use SwooleIO\Exceptions\DuplicateTableNameException;
 
-class TableContainer implements \Iterator, \Countable
+class TableContainer implements Iterator, Countable
 {
 
     /**
@@ -17,35 +19,10 @@ class TableContainer implements \Iterator, \Countable
      */
     public function __construct(array $structure = [])
     {
-        foreach ($structure as $name => [$columns, $size]){
-            if(!isset($size)) $size = Table::DefaultSize;
+        foreach ($structure as $name => [$columns, $size]) {
+            if (!isset($size)) $size = Table::DefaultSize;
             $this->create($name, $columns, $size);
         }
-    }
-
-    /**
-     * @return Table[]
-     */
-    public function all(): array
-    {
-        return $this->tables;
-    }
-
-    public function get(string $name): ?Table
-    {
-        return $this->tables[$name] ?? null;
-    }
-
-    /**
-     * @param string $name
-     * @return bool
-     */
-
-    public function del(string $name): Table
-    {
-        $table = $this->tables[$name];
-        unset($this->tables[$name]);
-        return $table;
     }
 
     /**
@@ -77,9 +54,34 @@ class TableContainer implements \Iterator, \Countable
         return true;
     }
 
+    /**
+     * @return Table[]
+     */
+    public function all(): array
+    {
+        return $this->tables;
+    }
+
+    public function get(string $name): ?Table
+    {
+        return $this->tables[$name] ?? null;
+    }
+
     public function destroy(string $name): bool
     {
         return $this->del($name)->destroy();
+    }
+
+    /**
+     * @param string $name
+     * @return bool
+     */
+
+    public function del(string $name): Table
+    {
+        $table = $this->tables[$name];
+        unset($this->tables[$name]);
+        return $table;
     }
 
     public function current(): Table

@@ -72,22 +72,26 @@ class BroadcastOperator extends Builder
 
     public function broadcast(Packet $packet): void
     {
-        go(function(){
+        go(function () {
             //TODO: Implement this
         }, $packet);
     }
+
     public function emitWithAck()
     {
 
     }
+
     public function fetchSockets()
     {
 
     }
+
     public function socketsJoin()
     {
 
     }
+
     public function socketsLeave()
     {
 

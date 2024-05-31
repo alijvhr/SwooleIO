@@ -12,7 +12,7 @@ class TableTest extends TestCase
     public static function tableProvider(): array
     {
         return [
-            ['fd', ['fd'=>'int'], 0],
+            ['fd', ['fd' => 'int'], 0],
             [0, 1, 1],
             [1, 0, 1],
             [1, 1, 3],

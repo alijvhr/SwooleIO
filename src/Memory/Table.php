@@ -2,14 +2,16 @@
 
 namespace SwooleIO\Memory;
 
+use Countable;
+use Iterator;
 use JetBrains\PhpStorm\ArrayShape;
 use OpenSwoole\Table as sTable;
 use SwooleIO\Exceptions\TableWrongTypeColumn;
 
-class Table implements \Iterator, \Countable
+class Table implements Iterator, Countable
 {
 
-    const Types = [
+    public const Types = [
         'int' => [sTable::TYPE_INT, 8],
         'float' => [sTable::TYPE_FLOAT, 0],
         'char' => [sTable::TYPE_STRING, 16],
@@ -25,9 +27,9 @@ class Table implements \Iterator, \Countable
         'phps' => [sTable::TYPE_STRING, 8192],
     ];
 
-    const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'phps'];
+    public const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'phps'];
 
-    const DefaultSize = 1000;
+    public const DefaultSize = 1000;
     public int $size;
     public int $memorySize;
     protected sTable $table;

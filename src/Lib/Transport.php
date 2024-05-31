@@ -16,7 +16,7 @@ abstract class Transport
     public bool $writable = false;
     public int $protocol;
 
-    protected string $readyState = "open";
+    protected string $readyState = 'open';
     protected bool $discarded = false;
     protected bool $binarySupport;
 
@@ -40,15 +40,15 @@ abstract class Transport
 
     public function close(callable $fn = null): void
     {
-        if ("closed" === $this->readyState || "closing" === $this->readyState) return;
+        if ('closed' === $this->readyState || 'closing' === $this->readyState) return;
 
-        $this->readyState = "closing";
+        $this->readyState = 'closing';
         $this->onClose();
     }
 
     public function onClose(): void
     {
-        $this->readyState = "closed";
+        $this->readyState = 'closed';
         $this->dispatch(Event::with(['transport' => $this]));
     }
 
