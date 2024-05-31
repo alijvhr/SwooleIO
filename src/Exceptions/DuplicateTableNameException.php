@@ -2,7 +2,9 @@
 
 namespace SwooleIO\Exceptions;
 
-class DuplicateTableNameException extends \Exception
+use Exception;
+
+class DuplicateTableNameException extends Exception
 {
 
 }
