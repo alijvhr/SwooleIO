@@ -3,9 +3,9 @@
 namespace SwooleIO\EngineIO;
 
 use OpenSwoole\Core\Psr\ServerRequest;
+use OpenSwoole\Coroutine;
 use OpenSwoole\Http\Request;
 use OpenSwoole\Http\Response;
-use OpenSwoole\Timer;
 use Psr\Http\Message\ServerRequestInterface;
 use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
@@ -16,17 +16,19 @@ use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
+use SwooleIO\Time\TimeManager;
+use SwooleIO\Time\Timer;
 use function SwooleIO\io;
 
 class Connection
 {
 
-    public static int $pingTimeout = 7000;
-    public static int $pingInterval = 10000;
+    public static int $pingTimeout = 4000;
+    public static int $pingInterval = 5000;
     /** @var Connection[] */
     protected static array $Connections = [];
     public ?int $writable = null;
-    public array $timers;
+    public TimeManager $timers;
     protected mixed $auth = '';
     protected ServerRequestInterface $request;
     protected int $fd = -1;
@@ -38,9 +40,12 @@ class Connection
     protected string $pid, $ip = '[null]', $ua = '[null]';
     protected ConnectionStatus $status = ConnectionStatus::disconnected;
     protected ?Transport $upgrade;
+    private bool $hold = false;
+    private array $coroutines = [];
 
     public function __construct(protected string $sid)
     {
+        $this->timers = new TimeManager();
         $this->pid = $this->sid;
     }
 
@@ -77,6 +82,21 @@ class Connection
     {
         foreach (self::$Connections as $socket)
             $socket->save();
+    }
+
+    public static function create(string $sid, Transport $transport = Transport::polling): Connection
+    {
+        $connection = new Connection($sid);
+        $connection->status = ConnectionStatus::connected;
+        $packet = Packet::create(EioPacketType::ping);
+        $connection->timers->tick('ping', Connection::$pingInterval / 1000, fn() => $connection->push($packet) && $connection->resetPingTimeout());
+        if (isset($transport)) $connection->transport($transport)->save();
+        return self::$Connections[$sid] = $connection;
+    }
+
+    public static function connect(string $sid): Connection
+    {
+        return self::recover($sid) ?? self::create($sid);
     }
 
     public function save(bool $socket = false): self
@@ -119,12 +139,13 @@ class Connection
         if (!isset($request)) return $this->request;
         $this->request = ServerRequest::from($request);
         $this->ua = $request->header['user-agent'] ?? '[null]';
-        $this->ip = explode(',', $request->header['x-forwarded-for']??'')[0]?? $request->server['remote_addr']?? '[null]';
+        $this->ip = $request->header['x-real-ip'] ?? explode(',', $request->header['x-forwarded-for'] ?? '')[0] ?: preg_replace('/(^|.*?:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', '$1', $request->server['remote_addr']) ?? '[null]';
         return $this;
     }
 
     public function receive(SioPacket $packet): void
     {
+        $this->async();
         $io = io();
         $server = $io->server();
         if ($this->transport() == Transport::polling)
@@ -148,13 +169,15 @@ class Connection
                     $this->push($pong);
                 break;
             case EioPacketType::pong:
-                $this->clearTimeout('pong');
+                $this->timers->clear('pong');
                 break;
             case EioPacketType::message:
                 $nsp = $packet->getNamespace();
                 if ($packet->getSocketType() == SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
-                        $socket = Socket::create($this, $nsp, $packet->getData() ?: null);
+                        $data = $packet->getData();
+                        $socket = Socket::create($this, $nsp, $data ?: null);
+                        if ($data) $this->auth($data);
                         try {
                             if (!Nsp::exists($nsp))
                                 throw new ConnectionError('Invalid Namespace');
@@ -170,11 +193,7 @@ class Connection
                 $socket->receive($packet);
                 break;
             case EioPacketType::upgrade:
-                $this->transport($this->upgrade);
-                $this->clearTimeout('timeout');
-                $this->upgrade = null;
-                $this->status = ConnectionStatus::upgraded;
-                $this->flush();
+                $this->upgrade($this->upgrade);
                 break;
         }
     }
@@ -187,18 +206,9 @@ class Connection
         return $this;
     }
 
-    public function resetTimeout(): int|bool
+    public function resetTimeout(): Timer
     {
-        $this->clearTimeout('timeout');
-        return $this->timers['timeout'] = Timer::after(self::$pingTimeout + self::$pingInterval + 1000, fn() => $this->disconnect('Timed out'));
-    }
-
-    protected function clearTimeout(string $name): void
-    {
-        if (isset($this->timers[$name])) {
-            Timer::clear($this->timers[$name]);
-            unset($this->timers[$name]);
-        }
+        return $this->timers->after('timeout', (self::$pingTimeout + self::$pingInterval) / 1000 + 1, fn() => $this->disconnect('Timed out'));
     }
 
     public function disconnect(string $reason = ''): void
@@ -206,8 +216,7 @@ class Connection
         foreach ($this->sockets as $connection)
             $connection->close();
         unset(self::$Connections[$this->fd]);
-        foreach ($this->timers as $timer)
-            Timer::clear($timer);
+        $this->timers->clear();
         $server = io()->server();
         if ($server->isEstablished($this->fd))
             $server->disconnect($this->fd, reason: $reason);
@@ -217,15 +226,6 @@ class Connection
     public function close(string $namespace): void
     {
         unset($this->sockets[$namespace]);
-    }
-
-    public static function create(string $sid, Transport $transport = Transport::polling): Connection
-    {
-        $connection = new Connection($sid);
-        $connection->status = ConnectionStatus::connected;
-        $connection->timers['ping'] = Timer::tick(Connection::$pingInterval, fn($t, $packet) => $connection->push($packet) && $connection->resetPingTimeout(), Packet::create(EioPacketType::ping));
-        if (isset($transport)) $connection->transport($transport)->save();
-        return self::$Connections[$sid] = $connection;
     }
 
     public function push(Packet $packet): bool
@@ -238,8 +238,7 @@ class Connection
     {
         if (isset($this->upgrade) && $this->writable) {
             $response = Response::create($this->writable);
-            $response->write(EioPacket::create(EioPacketType::noop));
-            $response->end();
+            $response->end(EioPacket::create(EioPacketType::noop));
             $this->writable = null;
         }
         $server = io()->server();
@@ -247,21 +246,21 @@ class Connection
             case Transport::polling:
                 if (isset($this->writable) && $this->buffer) {
                     $response = Response::create($this->writable);
-                    if ($response->write(implode(chr(30), $this->buffer)))
+                    if ($response->end(implode(chr(30), $this->buffer)))
                         $this->buffer = [];
-                    $response->end();
                     $this->resetTimeout();
                     $this->writable = null;
                 }
                 return true;
             case Transport::websocket:
-                if ($this->isConnected())
+                if ($this->isConnected()) {
                     foreach ($this->buffer as $key => $data) {
                         if ($server->push($this->fd, $data))
                             unset($this->buffer[$key]);
                         else
                             return false;
                     }
+                }
                 return true;
             default:
                 return false;
@@ -271,15 +270,9 @@ class Connection
     public function isConnected(): bool
     {
         $io = io();
-        if ($this->status == ConnectionStatus::upgraded && $this->fd && $io->server()->isEstablished($this->fd))
+        if ($this->transport == Transport::websocket && $this->fd && $io->server()->isEstablished($this->fd))
             return true;
         return false;
-    }
-
-    protected function resetPingTimeout(): int|bool
-    {
-        $this->clearTimeout('pong');
-        return $this->timers['pong'] = Timer::after(Connection::$pingTimeout, fn() => $this->disconnect('ping timeout'));
     }
 
     public function upgrading(Transport $transport): self
@@ -289,11 +282,6 @@ class Connection
         return $this;
     }
 
-    public static function connect(string $sid): Connection
-    {
-        return self::recover($sid) ?? self::create($sid);
-    }
-
     /**
      * @template Auth of string|object|array|null
      * @param Auth $auth
@@ -301,7 +289,10 @@ class Connection
      */
     public function auth(string|object|array $auth = null): string|object|array
     {
-        if (!isset($auth)) return $this->auth;
+        if (!isset($auth)) {
+            $this->async();
+            return $this->auth;
+        }
         $this->auth = $auth;
         return $this;
     }
@@ -342,6 +333,41 @@ class Connection
     public function ua(): string
     {
         return $this->ua;
+    }
+
+    public function upgrade(Transport $upgrade): Connection
+    {
+        $this->transport($upgrade);
+        $this->timers->clear('timeout');
+        $this->upgrade = null;
+        $this->status = ConnectionStatus::upgraded;
+        $this->flush();
+        return $this;
+    }
+
+    public function hold(): void
+    {
+        $this->hold = true;
+    }
+
+    public function resume(): void
+    {
+        $this->hold = false;
+        foreach ($this->coroutines as $coroutine)
+            Coroutine::resume($coroutine);
+        $this->coroutines = [];
+    }
+
+    protected function async(): void
+    {
+        if (!$this->hold) return;
+        $this->coroutines[] = Coroutine::getCid();
+        Coroutine::yield();
+    }
+
+    protected function resetPingTimeout(): Timer
+    {
+        return $this->timers->after('pong', Connection::$pingTimeout / 1000, fn() => $this->disconnect('ping timeout'));
     }
 
 }

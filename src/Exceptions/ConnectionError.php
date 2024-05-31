@@ -2,7 +2,9 @@
 
 namespace SwooleIO\Exceptions;
 
-class ConnectionError extends \Exception
+use Exception;
+
+class ConnectionError extends Exception
 {
 
 }
