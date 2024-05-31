@@ -2,7 +2,9 @@
 
 namespace SwooleIO\Exceptions;
 
-class InvalidPacketException extends \Exception
+use Exception;
+
+class InvalidPacketException extends Exception
 {
 
 }
