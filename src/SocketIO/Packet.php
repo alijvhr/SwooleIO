@@ -133,7 +133,7 @@ class Packet extends EioPacket
     protected function parse(): self
     {
         parent::parse();
-        if ($this->valid && $this->engine_type == EioPacketType::message) {
+        if ($this->getEngineType() == EioPacketType::message) {
             preg_match('#^(\d)((?:\d++-)?)((?:/[^,]++,)?)((?:\d++)?)(.*+)$#ism', $this->payload, $parts);
             $this->socket_type = SioPacketType::tryFrom($parts[1]);
             $this->binary_attachments = [];
@@ -147,7 +147,7 @@ class Packet extends EioPacket
                     $valid = true;
                 case SioPacketType::binary_ack:
                 case SioPacketType::ack:
-                    $valid = $valid?: is_array($payload);
+                    $valid = $valid ?: is_array($payload);
                     $this->data = $payload;
                     break;
                 case SioPacketType::disconnect:

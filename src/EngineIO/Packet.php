@@ -2,10 +2,13 @@
 
 namespace SwooleIO\EngineIO;
 
+use Iterator;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Exceptions\InvalidPacketException;
+use TypeError;
+use function SwooleIO\debug;
 
-class Packet implements \Iterator
+class Packet implements Iterator
 {
 
     protected string $packet = '';
@@ -27,54 +30,16 @@ class Packet implements \Iterator
             $this->packet = $packet;
             try {
                 $this->parse();
+                $this->valid = true;
             } catch (InvalidPacketException $e) {
                 $this->valid = false;
             }
-        }
+        } else $this->valid = true;
     }
 
-    /**
-     * @throws InvalidPacketException
-     */
-    protected function parse(): self
-    {
-        if (isset($this->valid)) return $this;
-        $payloads = explode(chr(30), $this->packet);
-        $payload = $payloads[0];
-        $this->packet = $payload;
-        $type = EioPacketType::tryFrom($payload[0] ?? -1);
-        if (isset($type)) {
-            $this->payload = substr($payload, 1);
-            $this->engine_type = $type;
-            $this->valid = true;
-        } else {
-            $this->valid = false;
-            throw new InvalidPacketException();
-        }
-        for ($i = 1; $i < count($payloads); $i++) {
-            $packet = new static($payloads[$i]);
-            $this->append($packet);
-        }
-        return $this;
-    }
-
-    public function append(Packet $packet): Packet
-    {
-
-        $packet->order = &$this->order;
-        $packet->index = count($this->order);
-        $this->order[] = $packet;
-        return $this;
-    }
-
-    /**
-     * @throws InvalidPacketException
-     */
     public static function from(string $packet): ?static
     {
-        $object = new static($packet);
-        $object->parse();
-        return $object;
+        return new static($packet);
     }
 
     public static function create(EioPacketType $type, ...$data): self
@@ -89,14 +54,23 @@ class Packet implements \Iterator
         return $object;
     }
 
-    public function getEngineType(bool $as_int = false): int|EioPacketType
+    public function append(Packet $packet): Packet
     {
-        return $as_int ? $this->engine_type->value : $this->engine_type;
+
+        $packet->order = &$this->order;
+        $packet->index = count($this->order);
+        $this->order[] = $packet;
+        return $this;
+    }
+
+    public function getEngineType(bool $as_int = false): int|EioPacketType|null
+    {
+        return $this->valid ? ($as_int ? $this->engine_type->value : $this->engine_type) : null;
     }
 
     public function getPayload(): ?string
     {
-        return $this->payload;
+        return $this->valid ? $this->payload : null;
     }
 
     /**
@@ -140,5 +114,35 @@ class Packet implements \Iterator
     public function rewind(): void
     {
         $this->iterator = $this->order[0];
+    }
+
+    /**
+     * @throws InvalidPacketException
+     */
+    protected function parse(): self
+    {
+        if (isset($this->valid)) return $this;
+        $payloads = explode(chr(30), $this->packet);
+        $payload = $payloads[0];
+        $this->packet = $payload;
+        try {
+            $type = EioPacketType::tryFrom($payload[0] ?? -1);
+        } catch (TypeError $e) {
+            debug('Error EIO Type: ' . $payload);
+            throw new InvalidPacketException();
+        }
+        if (isset($type)) {
+            $this->payload = substr($payload, 1);
+            $this->engine_type = $type;
+            $this->valid = true;
+        } else {
+            $this->valid = false;
+            throw new InvalidPacketException();
+        }
+        for ($i = 1; $i < count($payloads); $i++) {
+            $packet = new static($payloads[$i]);
+            $this->append($packet);
+        }
+        return $this;
     }
 }
