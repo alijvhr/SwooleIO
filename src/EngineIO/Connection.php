@@ -139,7 +139,7 @@ class Connection
         if (!isset($request)) return $this->request;
         $this->request = ServerRequest::from($request);
         $this->ua = $request->header['user-agent'] ?? '[null]';
-        $this->ip = $request->header['x-real-ip'] ?? explode(',', $request->header['x-forwarded-for'] ?? '')[0] ?: preg_replace('/(^|.*?:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', '$1', $request->server['remote_addr']) ?? '[null]';
+        $this->ip = $request->header['x-real-ip'] ?? explode(',', $request->header['x-forwarded-for'] ?? '')[0] ?: preg_replace('/(^|.*?:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', '$2', $request->server['remote_addr']) ?? '[null]';
         return $this;
     }
 

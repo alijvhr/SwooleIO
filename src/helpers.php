@@ -2,6 +2,13 @@
 
 namespace SwooleIO;
 
+use Exception;
+use SwooleIO\Memory\ContextManager;
+
+if (!class_exists('CM')) {
+    class_alias(ContextManager::class, 'CM');
+}
+
 if (!function_exists('io')) {
     function io(): IO
     {
@@ -21,23 +28,23 @@ if (!function_exists('uuid')) {
     {
         try {
             $out = bin2hex(random_bytes(18));
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $out = '';
             for ($i = 0; $i < 16; $i++) $out .= chr(rand(12, 240));
             $out = dechex($out);
         }
 
-        $out[8] = "-";
-        $out[13] = "-";
-        $out[18] = "-";
-        $out[23] = "-";
+        $out[8] = '-';
+        $out[13] = '-';
+        $out[18] = '-';
+        $out[23] = '-';
 
-        $out[14] = "4";
+        $out[14] = '4';
 
         try {
-            $out[19] = ["8", "9", "a", "b"][random_int(0, 3)];
-        } catch (\Exception $e) {
-            $out[19] = ["8", "9", "a", "b"][rand(0, 3)];
+            $out[19] = ['8', '9', 'a', 'b'][random_int(0, 3)];
+        } catch (Exception $e) {
+            $out[19] = ['8', '9', 'a', 'b'][rand(0, 3)];
         }
 
         return $out;

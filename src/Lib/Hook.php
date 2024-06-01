@@ -2,6 +2,9 @@
 
 namespace SwooleIO\Lib;
 
+use ReflectionClass;
+use ReflectionMethod;
+
 abstract class Hook
 {
     public function __construct(protected object $target, bool $registerNow = false)
@@ -28,11 +31,11 @@ abstract class Hook
      */
     public function all(): array
     {
-        $class = new \ReflectionClass($this);
-        $methods = $class->getMethods(\ReflectionMethod::IS_PUBLIC);
+        $class = new ReflectionClass($this);
+        $methods = $class->getMethods(ReflectionMethod::IS_PUBLIC);
         $list = [];
         foreach ($methods as $method)
-            if(!$method->isStatic() && preg_match('/^on\p{Lu}/', $method->name))
+            if (!$method->isStatic() && preg_match('/^on\p{Lu}/', $method->name))
                 $list[] = substr($method->name, 2);
         return $list;
         /*
