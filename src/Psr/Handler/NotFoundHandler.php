@@ -7,7 +7,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-class NotFoundHandler implements RequestHandlerInterface {
+class NotFoundHandler implements RequestHandlerInterface
+{
     private ResponseInterface $responsePrototype;
 
     public function __construct()
@@ -19,4 +20,4 @@ class NotFoundHandler implements RequestHandlerInterface {
     {
         return $this->responsePrototype;
     }
-};
+}
