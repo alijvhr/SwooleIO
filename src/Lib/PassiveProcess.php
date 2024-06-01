@@ -31,16 +31,24 @@ class PassiveProcess
         $passiveProcess->data = $data;
         $container->on("{$type}Start", [$passiveProcess, 'start']);
         $container->on("{$type}Stop", [$passiveProcess, 'stop']);
+        if (strtolower($type) == 'worker')
+            $container->on("{$type}Exit", [$passiveProcess, 'exit']);
         return $passiveProcess;
     }
 
     public function start(Server|Pool $container, int $workerID = null): void
     {
         if (is_subclass_of($this->class, Process::class))
-            $this->process = $this->class::start($container, $this->data, $workerID);
+            $this->process = $this->class::instance(1, $container, $workerID, $this->data);
     }
 
     public function stop(Server|Pool $container, int $workerID = null): void
+    {
+        if (isset($this->process))
+            $this->process->exit();
+    }
+
+    public function exit(Server|Pool $container, int $workerID = null): void
     {
         if (isset($this->process))
             $this->process->exit();

@@ -12,16 +12,18 @@ abstract class Process extends Singleton
     protected ?int $workerID;
     protected mixed $data;
 
-    final public static function start(Pool|Server $container, mixed $data = null, int $workerID = null): static
+    final protected function init(...$args): void
     {
-        $process = static::instance(false);
-        $process->container = $container;
-        $process->workerID = $workerID;
-        $process->data = $data;
-        $process->init();
-        return $process;
+        $this->container = $args[0];
+        $this->workerID = $args[1] ?? null;
+        $this->data = $args[2] ?? null;
+        $this->start();
     }
 
+    abstract public function start();
+
     abstract public function exit();
+
+    abstract public function stop();
 
 }
