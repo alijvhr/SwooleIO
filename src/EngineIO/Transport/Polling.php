@@ -9,8 +9,8 @@ use SwooleIO\Lib\Transport;
 
 class Polling extends Transport
 {
-    protected int $closeTimeout = 30000;
     public bool $writable = false;
+    protected int $closeTimeout = 30000;
     protected bool $shouldClose;
 
     public function __construct(protected ServerRequestInterface $request)

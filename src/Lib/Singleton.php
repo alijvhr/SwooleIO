@@ -9,24 +9,25 @@ abstract class Singleton
 
     protected static array $instances = [];
 
-    private function __construct(bool $run)
+    private function __construct(bool $run, ...$args)
     {
         if ($run)
-            $this->init();
+            $this->init(...$args);
     }
 
-    abstract function init();
+    abstract protected function init(...$args): void;
 
 
     /**
      * @param bool $run
+     * @param mixed ...$args
      * @return static
      */
-    public static function instance(bool $run = true): static
+    public static function instance(bool $run = true, ...$args): static
     {
         $cls = static::class;
         if (!isset(self::$instances[$cls])) {
-            self::$instances[$cls] = new static($run);
+            self::$instances[$cls] = new static($run, ...$args);
         }
 
         return self::$instances[$cls];

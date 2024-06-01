@@ -2,7 +2,9 @@
 
 namespace SwooleIO\Exceptions;
 
-class TransportError extends \Exception
+use Exception;
+
+class TransportError extends Exception
 {
 
 }
