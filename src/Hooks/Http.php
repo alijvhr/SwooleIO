@@ -53,7 +53,7 @@ class Http extends Hook
                 ContextManager::set('response', new PsrResponse(''));
                 $serverResponse = $this->handler->handle($serverRequest);
             } catch (ExitException|Error|Exception $e) {
-                if ($e instanceof Error || $e->getStatus() !== 0) {
+                if ($e instanceof Error || method_exists($e, 'getStatus') && $e->getStatus() !== 0) {
                     io()->log()->error("Exit: {$e->getMessage()} in {$e->getFile()}({$e->getLine()}).\n{$e->getTraceAsString()}");
                 }
                 $serverResponse = ContextManager::get('response');

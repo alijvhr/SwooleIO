@@ -34,33 +34,14 @@ class IO extends Singleton implements LoggerAwareInterface
 
     protected static string $serverID;
     protected static int $cpus;
-
+    public readonly int $metrics;
     protected WebsocketServer $server;
     protected TableContainer $tables;
     protected array $transports = ['polling', 'websocket'];
-
     protected string $path;
     protected array $endpoints = [];
     protected StackRequestHandler $reqHandler;
-
-    /**
-     * @throws DuplicateTableNameException
-     */
-    public function init(): void
-    {
-        $this->path = '/socket.io';
-        self::$serverID = substr(uuid(), -17);
-        self::$cpus = Util::getCPUNum();
-        $this->logger = new FallbackLogger();
-        $this->tables = new TableContainer([
-            'fd' => [['sid' => 'str', 'worker' => 'int'], 1e4],
-            'sid' => [['pid' => 'str', 'fd' => 'int', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'int', 'worker' => 'int'], 1e4],
-            'pid' => [['sid' => 'str'], 1e4],
-            'room' => [['cid' => 'list'], 1e4],
-            'cid' => [['conn' => 'phps'], 5e4],
-            'nsp' => [['cid' => 'list'], 1e3],
-        ]);
-    }
+    private string $cors = '';
 
     public function getTransports(): array
     {
@@ -71,11 +52,6 @@ class IO extends Singleton implements LoggerAwareInterface
     {
         $this->reqHandler->add($middleware);
         return $this;
-    }
-
-    public function server(): WebsocketServer
-    {
-        return $this->server;
     }
 
     public function path(string $path = null): string|self
@@ -106,26 +82,35 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->tables;
     }
 
+    public function metrics(int $port = 9501): static
+    {
+        if (!isset($this->metrics)) {
+            $this->metrics = $port;
+            $this->on('load', function () use ($port) {
+                $metrics = $this->server->listen('0.0.0.0', $port, Constant::SOCK_TCP);
+                $metrics->on('request', function ($request, $response) {
+                    $response->header('Content-Type', 'text/plain');
+                    $response->end(io()->server()->stats(2));
+                });
+            });
+        }
+        return $this;
+    }
+
+    public function listen(string $host, int $port, int $sockType): self
+    {
+        $this->endpoints[] = [$host, $port, $sockType];
+        return $this;
+    }
+
+    public function server(): WebsocketServer
+    {
+        return $this->server;
+    }
+
     public function start(): bool
     {
-        if (!$this->endpoints)
-            $default = ['0.0.0.0', 80, Constant::SOCK_TCP];
-        [$host, $port, $sockType] = $default ?? reset($this->endpoints);
-        $this->server = $server = new WebsocketServer($host, $port, Server::POOL_MODE, $sockType);
-        $server->set([
-            'task_worker_num' => self::$cpus,
-            'worker_num' => self::$cpus,
-            'dispatch_func' => [$this, 'dispatch_func'],
-            'open_http_protocol' => true,
-            'open_http2_protocol' => true,
-            'open_websocket_protocol' => true,
-            'task_enable_coroutine' => true,
-            'enable_coroutine' => true,
-            'send_yield' => true,
-            'websocket_compression' => true,
-            'log_level' => Constant::LOG_ERROR,
-        ]);
-        debug(Runtime::getHookFlags());
+        $server = $this->server;
         if (isset($default))
             $this->endpoints[] = $default;
         else
@@ -150,20 +135,8 @@ class IO extends Singleton implements LoggerAwareInterface
         });
         $this->dispatch(new SimpleEvent('load'));
         $this->of('/');
+        $server->on('WorkerError', fn() => $server->shutdown());
         return $this->server->start();
-    }
-
-    /**
-     * @param WebsocketServer $server
-     * @return void
-     */
-    protected function defaultHooks(WebsocketServer $server): void
-    {
-        $this->reqHandler = Http::register($server)->handler;
-        WebSocket::register($server);
-        Task::register($server);
-        PassiveProcess::hook($server, 'Manager', 'SwooleIO\Process\Manager', $this);
-        PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker', $this);
     }
 
     public function log(): ?LoggerInterface
@@ -174,12 +147,6 @@ class IO extends Singleton implements LoggerAwareInterface
     public function of(string $namespace): Nsp
     {
         return Nsp::get($namespace);
-    }
-
-    public function listen(string $host, int $port, int $sockType): self
-    {
-        $this->endpoints[] = [$host, $port, $sockType];
-        return $this;
     }
 
     public function close(int $fd): bool
@@ -199,12 +166,85 @@ class IO extends Singleton implements LoggerAwareInterface
 
     public function stop(): void
     {
-        $this->log()->info("shutting down");
+        $this->log()->info('shutting down');
         $this->server->shutdown();
+    }
+
+    public function defer(callable $fn): void
+    {
+        $this->server->defer($fn);
+    }
+
+    public function tick(int $ms, callable $fn): int
+    {
+        return $this->server->tick($ms, $fn);
+    }
+
+    public function after(int $ms, callable $fn): int
+    {
+        return $this->server->after($ms, $fn);
     }
 
     public function serverSideEmit(string $workerId, array $data): bool
     {
         return $this->server->sendMessage(serialize($data), $workerId);
+    }
+
+    public function cors(string $fqdn = null): IO|string
+    {
+        if (!isset($fqdn))
+            return $this->cors;
+        $this->cors = $fqdn;
+        return $this;
+    }
+
+    /**
+     * @throws DuplicateTableNameException
+     */
+    final protected function init(...$args): void
+    {
+        $this->path = '/socket.io';
+        self::$serverID = substr(uuid(), -17);
+        self::$cpus = Util::getCPUNum();
+        $this->logger = new FallbackLogger();
+        $this->tables = new TableContainer([
+            'fd' => [['sid' => 'str', 'worker' => 'int'], 1e4],
+            'sid' => [['pid' => 'str', 'fd' => 'int', 'cid' => 'json', 'sock' => 'phps', 'transport' => 'int', 'worker' => 'int'], 1e4],
+            'pid' => [['sid' => 'str'], 1e4],
+            'room' => [['cid' => 'list'], 1e4],
+            'cid' => [['conn' => 'phps'], 5e4],
+            'nsp' => [['cid' => 'list'], 1e3],
+        ]);
+        $this->server = $server = new WebsocketServer('0.0.0.0', 0, Server::POOL_MODE, Constant::SOCK_TCP);
+        $server->set([
+            'task_worker_num' => self::$cpus,
+            'worker_num' => self::$cpus,
+            'dispatch_func' => $this->dispatch_func(...),
+            'open_http_protocol' => true,
+            'open_http2_protocol' => true,
+            'open_websocket_protocol' => true,
+            'task_enable_coroutine' => true,
+            'enable_coroutine' => true,
+            'send_yield' => true,
+            'websocket_compression' => true,
+            'http_compression' => true,
+            'compression_min_length' => 512,
+            'backlog' => 512,
+            'log_level' => Constant::LOG_NONE,
+        ]);
+        Runtime::enableCoroutine();
+    }
+
+    /**
+     * @param WebsocketServer $server
+     * @return void
+     */
+    protected function defaultHooks(WebsocketServer $server): void
+    {
+        $this->reqHandler = Http::register($server)->handler;
+        WebSocket::register($server);
+        Task::register($server);
+        PassiveProcess::hook($server, 'Manager', 'SwooleIO\Process\Manager');
+        PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker');
     }
 }
