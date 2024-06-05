@@ -70,7 +70,7 @@ class Nsp
 
     public function send(...$args): void
     {
-        $this->emit("message", ...$args);
+        $this->emit('message', ...$args);
     }
 
     public function emit($ev, ...$args): void
@@ -125,10 +125,10 @@ class Nsp
     {
         $connected = false;
         $this->run($socket, function () use ($socket, $packet, &$connected) {
-            $this->dispatch(Event::create('connection',$socket, $packet));
+            $this->dispatch(Event::create('connection', $socket, $packet));
             $connected = true;
         });
-        if(!$connected)
+        if (!$connected)
             throw new ConnectionError('Something gone wrong!');
     }
 
