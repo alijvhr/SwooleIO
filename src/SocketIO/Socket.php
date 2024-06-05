@@ -13,13 +13,13 @@ class Socket implements SocketInterface
 
     use EventHandler;
 
-    const reserved_events = [
-        "connect",
-        "connect_error",
-        "disconnect",
-        "disconnecting",
-        "newListener",
-        "removeListener",
+    public const reserved_events = [
+        'connect',
+        'connect_error',
+        'disconnect',
+        'disconnecting',
+        'newListener',
+        'removeListener',
     ];
     protected string $cid;
     protected array $rooms = [];
@@ -31,6 +31,16 @@ class Socket implements SocketInterface
             $this->connection->auth($auth);
         $this->cid = io()->generateSid();
         io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
+    }
+
+    public static function connect(Connection $connection, string $namespace): Socket
+    {
+        return self::create($connection, $namespace);
+    }
+
+    public static function create(Connection $connection, string $namespace, mixed $auth = null): Socket
+    {
+        return new Socket($connection, $namespace, $auth);
     }
 
     public function auth(): array|object|string
@@ -46,16 +56,6 @@ class Socket implements SocketInterface
     public function sid(): string
     {
         return $this->connection->sid();
-    }
-
-    public static function connect(Connection $connection, string $namespace): Socket
-    {
-        return self::create($connection, $namespace);
-    }
-
-    public static function create(Connection $connection, string $namespace, mixed $auth = null): Socket
-    {
-        return new Socket($connection, $namespace, $auth);
     }
 
     public function remote(): RemoteSocket
@@ -88,7 +88,7 @@ class Socket implements SocketInterface
     {
         if (in_array($event, self::reserved_events)) return false;
         $packet = Packet::create(SioPacketType::event, $event, ...$data)->setNamespace($this->nsp);
-        return $this->connection->push($packet);
+        return $this->push($packet);
     }
 
     public function close(): void
@@ -135,13 +135,18 @@ class Socket implements SocketInterface
         return $this->connection->fd();
     }
 
-    public function ip()
+    public function ip(): string
     {
         return $this->connection->ip();
     }
 
-    public function ua()
+    public function ua(): string
     {
         return $this->connection->ua();
+    }
+
+    public function push(Packet $packet): bool
+    {
+        return $this->connection->push($packet);
     }
 }
