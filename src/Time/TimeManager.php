@@ -2,30 +2,33 @@
 
 namespace SwooleIO\Time;
 
+use ArrayAccess;
 use OpenSwoole\Timer as SwooleTimer;
+use function SwooleIO\io;
 
-class TimeManager implements \ArrayAccess
+class TimeManager implements ArrayAccess
 {
 
     protected static ?int $id;
     protected static int $time = 0;
     /** @var Timer[] $timers */
-    protected array $timers;
+    protected array $timers = [];
 
     public static function init(): void
     {
         if (!isset(self::$id))
-            self::$id = SwooleTimer::tick(100, fn() => self::$time++);
+            self::$id = io()->tick(100, fn() => self::$time++);
     }
 
-    public function tick(string $name, int $interval, callable $fn): Timer
+    public function tick(string $name, float $interval, callable $fn, array $arguments = []): Timer
     {
         if (isset($this->timers[$name])) $this->timers[$name]->stop();
-        return $this->timers[$name] = Timer::tick($interval, $fn);
+        return $this->timers[$name] = Timer::tick($interval, $fn, $arguments);
     }
 
     public function stop(string $name = null): bool
     {
+        self::init();
         if (!isset($name)) {
             foreach ($this->timers as $timer)
                 $timer->stop();
@@ -38,25 +41,27 @@ class TimeManager implements \ArrayAccess
 
     public static function end(): void
     {
+        self::init();
         self::$id = null;
         SwooleTimer::clearall();
     }
 
     public static function now(): float|int
     {
+        self::init();
         return self::$time * 100;
     }
 
-    public function after(string $name, int $after, callable $fn): Timer
+    public function after(string $name, float $after, callable $fn, array $arguments = []): Timer
     {
         if (isset($this->timers[$name])) $this->timers[$name]->stop();
-        return $this->timers[$name] = Timer::after($after, $fn);
+        return $this->timers[$name] = Timer::after($after, $fn, $arguments);
     }
 
-    public function tickAfter(string $name, int $after, int $interval, callable $fn): Timer
+    public function tickAfter(string $name, float $after, float $interval, callable $fn, array $arguments = []): Timer
     {
         if (isset($this->timers[$name])) $this->timers[$name]->stop();
-        return $this->timers[$name] = Timer::tickAfter($after, $interval, $fn);
+        return $this->timers[$name] = Timer::tickAfter($after, $interval, $fn, $arguments);
     }
 
     public function refresh(string $name = null): bool
@@ -117,9 +122,9 @@ class TimeManager implements \ArrayAccess
         return true;
     }
 
-    public function remaining(string $name): int
+    public function remaining(string $name, bool $asMilliseconds = false): float|int
     {
-        return isset($this->timers[$name]) ? $this->timers[$name]->remaining() : 0;
+        return isset($this->timers[$name]) ? $this->timers[$name]->remaining($asMilliseconds) : 0;
     }
 
     public function active(string $name): int
@@ -127,8 +132,8 @@ class TimeManager implements \ArrayAccess
         return isset($this->timers[$name]) ? $this->timers[$name]->active() : 0;
     }
 
-    public function elapsed(string $name): int
+    public function elapsed(string $name, bool $asMilliseconds = false): float|int
     {
-        return isset($this->timers[$name]) ? $this->timers[$name]->elapsed() : 0;
+        return isset($this->timers[$name]) ? $this->timers[$name]->elapsed($asMilliseconds) : 0;
     }
 }
