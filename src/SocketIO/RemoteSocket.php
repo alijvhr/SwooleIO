@@ -27,27 +27,9 @@ class RemoteSocket implements SocketInterface
         return new self($socket->sid(), $socket->transport(), $socket->workerId(), $socket->ip(), $socket->ua(), $socket->nsp(), $socket->auth(), $socket->fd());
     }
 
-    public function __get(string $name)
-    {
-        return $this?->$name;
-    }
-
-    public function emit(string $event, mixed ...$data): bool
-    {
-        $io = io();
-        $server = $io->server();
-        $packet = Packet::create(SioPacketType::event, $event, ...$data)->setNamespace($this->nsp);
-        return $this->transport == Transport::websocket && $server->isEstablished($this->fd) && $server->push($this->fd, $packet->encode()) || $io->serverSideEmit($this->workerId, ['send', $this->sid, $packet]);
-    }
-
     public function sid(): string
     {
         return $this->sid;
-    }
-
-    public function auth(): array|object|string
-    {
-        return $this->auth;
     }
 
     public function transport(): Transport
@@ -60,9 +42,24 @@ class RemoteSocket implements SocketInterface
         return $this->workerId;
     }
 
+    public function ip(): string
+    {
+        return $this->ip;
+    }
+
+    public function ua(): string
+    {
+        return $this->ua;
+    }
+
     public function nsp(): string
     {
         return $this->nsp;
+    }
+
+    public function auth(): array|object|string
+    {
+        return $this->auth;
     }
 
     public function fd(): ?int
@@ -70,13 +67,21 @@ class RemoteSocket implements SocketInterface
         return $this->fd;
     }
 
-    public function ip()
+    public function __get(string $name)
     {
-        // TODO: Implement ip() method.
+        return $this?->$name;
     }
 
-    public function ua()
+    public function emit(string $event, mixed ...$data): bool
     {
-        // TODO: Implement ua() method.
+        $packet = Packet::create(SioPacketType::event, $event, ...$data)->setNamespace($this->nsp);
+        return $this->push($packet);
+    }
+
+    public function push(Packet $packet): bool
+    {
+        $io = io();
+        $server = $io->server();
+        return $this->transport == Transport::websocket && $server->isEstablished($this->fd) && $server->push($this->fd, $packet->encode()) || $io->serverSideEmit($this->workerId, ['send', $this->sid, $packet]);
     }
 }
