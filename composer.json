@@ -27,7 +27,8 @@
     "psr/event-dispatcher": "^1.0",
     "guzzlehttp/promises": "^2.0-stable",
     "psr/log": "3.x-dev",
-    "toolkit/cli-utils": "^2.0-stable"
+    "toolkit/cli-utils": "^2.0-stable",
+    "ext-swoole": "*"
   },
   "require-dev": {
     "phpunit/phpunit": "^10.5.10",
