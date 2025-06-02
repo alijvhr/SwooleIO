@@ -27,12 +27,11 @@
     "psr/event-dispatcher": "^1.0",
     "guzzlehttp/promises": "^2.0-stable",
     "psr/log": "3.x-dev",
-    "toolkit/cli-utils": "^2.0-stable",
-    "openswoole/core": "*"
+    "toolkit/cli-utils": "^2.0-stable"
   },
   "require-dev": {
-    "openswoole/ide-helper": ">=22.0.1",
-    "phpunit/phpunit": "^10.5.10"
+    "phpunit/phpunit": "^10.5.10",
+    "swoole/ide-helper": "@dev"
   },
   "autoload": {
     "psr-4": {
