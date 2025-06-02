@@ -17,9 +17,17 @@ if (!function_exists('io')) {
 }
 
 if (!function_exists('debug')) {
-    function debug(string $msg): void
+    function debug(mixed $msg, array $flags = []): void
     {
-        IO::instance()->log()->debug($msg);
+        $json_flags = 0;
+        foreach ($flags as $flag) {
+            switch ($flag) {
+                case 'json_pretty_print':
+                    $json_flags |= JSON_PRETTY_PRINT;
+            }
+        }
+        if (!is_string($msg)) $msg = json_encode($msg, $json_flags);
+        IO::instance()->log->debug($msg);
     }
 }
 

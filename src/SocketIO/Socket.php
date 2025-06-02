@@ -23,14 +23,14 @@ class Socket implements SocketInterface
     ];
     protected string $cid;
     protected array $rooms = [];
-    protected object $hook;
 
-    public function __construct(protected Connection $connection, protected string $nsp, mixed $auth = null)
+//    protected object $hook;
+
+    public function __construct(protected Connection $connection, protected string $nsp)
     {
-        if (isset($auth))
-            $this->connection->auth($auth);
         $this->cid = io()->generateSid();
-        io()->table('cid')->set($this->cid(), ['sid' => $this->connection->sid()]);
+        io()->table('cid')->set($this->cid, ['sid' => $this->connection->sid(), 'namespace' => $this->nsp]);
+        io()->table('sid')->push($this->sid(), 'cid', $this->cid);
     }
 
     public static function connect(Connection $connection, string $namespace): Socket
@@ -38,9 +38,9 @@ class Socket implements SocketInterface
         return self::create($connection, $namespace);
     }
 
-    public static function create(Connection $connection, string $namespace, mixed $auth = null): Socket
+    public static function create(Connection $connection, string $namespace): Socket
     {
-        return new Socket($connection, $namespace, $auth);
+        return new Socket($connection, $namespace);
     }
 
     public function auth(): array|object|string
@@ -68,11 +68,11 @@ class Socket implements SocketInterface
         return $this->connection;
     }
 
-    public function hook(object $listener): self
-    {
-        $this->hook = $listener;
-        return $this;
-    }
+//    public function hook(object $listener): self
+//    {
+//        $this->hook = $listener;
+//        return $this;
+//    }
 
     public function write(mixed ...$data): bool
     {
@@ -95,6 +95,7 @@ class Socket implements SocketInterface
     {
         $this->dispatch(Event::create('disconnect', $this));
         $this->connection->close($this->nsp);
+        io()->table('cid')->del($this->cid);
     }
 
     public function nsp(): string

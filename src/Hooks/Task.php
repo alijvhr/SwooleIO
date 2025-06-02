@@ -2,7 +2,8 @@
 
 namespace SwooleIO\Hooks;
 
-use OpenSwoole\Server;
+use Swoole\Server;
+use Sparrow\Lib\Service\Packet\ServicePacket;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Lib\SimpleEvent;
@@ -13,11 +14,11 @@ class Task extends Hook
 
     public function onPipeMessage(Server $server, int $workerID, $data): void
     {
-        $data = unserialize($data);
-        if ($data[0] == 'send') {
+        $data = @unserialize($data);
+        if (is_object($data)) {
+            ($this->target instanceof Server ? io() : $this->target)->dispatch(new SimpleEvent(ServicePacket::class, $data));
+        } elseif (is_array($data)) {
             Connection::recover($data[1])?->push($data[2]);
-        } else {
-            ($this->target instanceof Server ? io() : $this->target)->dispatch(new SimpleEvent($data[0], $data));
         }
     }
 

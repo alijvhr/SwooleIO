@@ -2,7 +2,7 @@
 
 namespace SwooleIO\Memory;
 
-use OpenSwoole\Coroutine;
+use Swoole\Coroutine;
 
 class ContextManager
 {
@@ -26,13 +26,17 @@ class ContextManager
      */
     public static function &get(string $key, mixed $default = null): mixed
     {
-        $cid = Coroutine::getCid();
+        $cid = $ccid = Coroutine::getCid();
         do {
             if (isset(Coroutine::getContext($cid)[$key])) {
                 return Coroutine::getContext($cid)[$key];
             }
             $cid = Coroutine::getPcid($cid);
-        } while ($cid !== -1);
-        return $default;
+        } while ($cid > 0);
+        if (isset($default))
+            return $default;
+        $ctx = Coroutine::getContext($ccid);
+        $ctx[$key] = null;
+        return $ctx[$key];
     }
 }

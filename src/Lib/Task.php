@@ -2,7 +2,7 @@
 
 namespace SwooleIO\Lib;
 
-use OpenSwoole\Server;
+use Swoole\Server;
 
 abstract class Task
 {

@@ -2,8 +2,6 @@
 
 namespace SwooleIO\Lib;
 
-use phpDocumentor\Reflection\Types\True_;
-
 abstract class Singleton
 {
 
@@ -15,7 +13,7 @@ abstract class Singleton
             $this->init(...$args);
     }
 
-    abstract protected function init(...$args): void;
+    abstract protected function init(): void;
 
 
     /**

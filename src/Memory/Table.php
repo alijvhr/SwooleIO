@@ -5,29 +5,29 @@ namespace SwooleIO\Memory;
 use Countable;
 use Iterator;
 use JetBrains\PhpStorm\ArrayShape;
-use OpenSwoole\Table as sTable;
+use Swoole\Table as sTable;
 use SwooleIO\Exceptions\TableWrongTypeColumn;
 
 class Table implements Iterator, Countable
 {
 
     public const Types = [
-        'int' => [sTable::TYPE_INT, 8],
-        'float' => [sTable::TYPE_FLOAT, 0],
-        'char' => [sTable::TYPE_STRING, 16],
-        'str-s' => [sTable::TYPE_STRING, 64],
-        'str' => [sTable::TYPE_STRING, 256],
-        'str-b' => [sTable::TYPE_STRING, 1024],
-        'text' => [sTable::TYPE_STRING, 8192],
-        'arr-2' => [sTable::TYPE_STRING, 2048],
-        'arr-4' => [sTable::TYPE_STRING, 2048],
-        'arr' => [sTable::TYPE_STRING, 2048],
-        'list' => [sTable::TYPE_STRING, 4096],
-        'json' => [sTable::TYPE_STRING, 8192],
-        'phps' => [sTable::TYPE_STRING, 8192],
+        'int'    => [sTable::TYPE_INT, 8],
+        'float'  => [sTable::TYPE_FLOAT, 0],
+        'char'   => [sTable::TYPE_STRING, 16],
+        'str-s'  => [sTable::TYPE_STRING, 64],
+        'str'    => [sTable::TYPE_STRING, 256],
+        'str-b'  => [sTable::TYPE_STRING, 1024],
+        'text'   => [sTable::TYPE_STRING, 8192],
+        'arr-2'  => [sTable::TYPE_STRING, 2048],
+        'arr-4'  => [sTable::TYPE_STRING, 2048],
+        'arr'    => [sTable::TYPE_STRING, 2048],
+        'list'   => [sTable::TYPE_STRING, 4096],
+        'json'   => [sTable::TYPE_STRING, 8192],
+        'object' => [sTable::TYPE_STRING, 8192],
     ];
 
-    public const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'phps'];
+    public const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'object'];
 
     public const DefaultSize = 1000;
     public int $size;
@@ -48,7 +48,7 @@ class Table implements Iterator, Countable
     {
         $this->name = $name;
         $this->columns = $columns;
-        $table = $this->table = new sTable($size);
+        $table = $this->table = new sTable($size, 1);
         foreach ($columns as $col => $type) {
             if (in_array($type, self::Castables))
                 $this->casts[$col] = $type;
@@ -100,12 +100,12 @@ class Table implements Iterator, Countable
     protected function castFrom(mixed $data, string $type): string
     {
         return match ($type) {
-            'json' => json_encode($data),
-            'phps' => serialize($data),
-            'arr-2' => pack('s*', ...$data),
-            'arr-4' => pack('l*', ...$data),
-            'arr' => pack('q*', ...$data),
-            'list' => implode('|', $data),
+            'json'   => json_encode($data),
+            'object' => serialize($data),
+            'arr-2'  => pack('s*', ...$data),
+            'arr-4'  => pack('l*', ...$data),
+            'arr'    => pack('q*', ...$data),
+            'list'   => implode('|', $data),
         };
     }
 
@@ -161,13 +161,13 @@ class Table implements Iterator, Countable
     protected function castTo(string $data, ?string $type): mixed
     {
         return match ($type) {
-            'json' => json_decode($data, true),
-            'phps' => unserialize($data),
-            'arr-2' => unpack('s*', $data, 2),
-            'arr-4' => unpack('l*', $data, 2),
-            'arr' => unpack('q*', $data, 2),
-            'list' => explode('|', $data),
-            default => $data
+            'json'   => json_decode($data, true),
+            'object' => unserialize($data),
+            'arr-2'  => unpack('s*', $data, 2),
+            'arr-4'  => unpack('l*', $data, 2),
+            'arr'    => unpack('q*', $data, 2),
+            'list'   => explode('|', $data),
+            default  => $data
         };
     }
 
@@ -176,7 +176,7 @@ class Table implements Iterator, Countable
         return match ($type) {
             'arr-2' => 2,
             'arr-4' => 4,
-            'arr' => 8,
+            'arr'   => 8,
             default => 0
         };
     }
@@ -192,9 +192,9 @@ class Table implements Iterator, Countable
     public function push(string $key, string $column, int|string $value, string|int $name = null): int|string
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
-            'list' => ["$data|$value", substr_count($data, '|') + 1, $value],
+            'list'                  => ["$data|$value", substr_count($data, '|') + 1, $value],
             'arr', 'arr-2', 'arr-4' => [$data . $this->castFrom([$value], $type), strlen($data) / $size + 1, $value],
-            'json', 'phps' => $this->push_json($data, $value, $name),
+            'json', 'object'        => $this->push_json($data, $value, $name),
         })[1];
     }
 
@@ -252,7 +252,7 @@ class Table implements Iterator, Countable
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'arr', 'arr-2', 'arr-4' => [substr($data, 0, -$size), strlen($data) / $size - 1, substr($data, -$size)],
-            'json', 'list' => $this->pop_json($data),
+            'json', 'list'          => $this->pop_json($data),
         })[3];
     }
 
@@ -274,7 +274,7 @@ class Table implements Iterator, Countable
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'arr', 'arr-2', 'arr-4' => [str_replace($this->castFrom([$value], $type), '', $data, $count), strlen($data) / $size - $count, $value],
-            'list' => [str_replace("|$value|", '|', $data, $count), substr_count($data, '|') + 1 - $count, $value],
+            'list'                  => [str_replace("|$value|", '|', $data, $count), substr_count($data, '|') + 1 - $count, $value],
         })[1];
     }
 
@@ -303,9 +303,14 @@ class Table implements Iterator, Countable
         return $this->table->getMemorySize();
     }
 
+    public function stats(): array
+    {
+        return $this->table->stats();
+    }
+
     public function current(): ?array
     {
-        return $this->table->current();
+        return $this->table->get($this->key());
     }
 
     public function next(): void

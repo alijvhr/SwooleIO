@@ -12,6 +12,11 @@ abstract class Hook
         if ($registerNow) $this->registerAll();
     }
 
+    public static function to(object $target): static
+    {
+        return new static($target, true);
+    }
+
     /**
      * Register all available event callbacks
      *

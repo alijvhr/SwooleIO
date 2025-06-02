@@ -4,12 +4,10 @@ namespace SwooleIO\Hooks;
 
 use Error;
 use Exception;
-use OpenSwoole\Core\Psr\Response as PsrResponse;
-use OpenSwoole\Core\Psr\ServerRequest;
-use Openswoole\ExitException;
-use OpenSwoole\Http\Request;
-use OpenSwoole\Http\Response;
-use OpenSwoole\Server;
+use Swoole\ExitException;
+use Swoole\Http\Request;
+use Swoole\Http\Response;
+use Swoole\Server;
 use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\Transport;
@@ -21,6 +19,8 @@ use SwooleIO\Memory\ContextManager;
 use SwooleIO\Psr\Handler\NotFoundHandler;
 use SwooleIO\Psr\Handler\QueueRequestHandler;
 use SwooleIO\Psr\Handler\StackRequestHandler;
+use SwooleIO\Psr\Response as PsrResponse;
+use SwooleIO\Psr\ServerRequest;
 use SwooleIO\SocketIO\Packet;
 use function SwooleIO\io;
 
@@ -54,7 +54,7 @@ class Http extends Hook
                 $serverResponse = $this->handler->handle($serverRequest);
             } catch (ExitException|Error|Exception $e) {
                 if ($e instanceof Error || method_exists($e, 'getStatus') && $e->getStatus() !== 0) {
-                    io()->log()->error("Exit: {$e->getMessage()} in {$e->getFile()}({$e->getLine()}).\n{$e->getTraceAsString()}");
+                    io()->log->error("Exit: {$e->getMessage()} in {$e->getFile()}({$e->getLine()}).\n{$e->getTraceAsString()}");
                 }
                 $serverResponse = ContextManager::get('response');
             }

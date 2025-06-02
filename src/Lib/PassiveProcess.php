@@ -2,8 +2,8 @@
 
 namespace SwooleIO\Lib;
 
-use OpenSwoole\Process\Pool;
-use OpenSwoole\Server;
+use Swoole\Process\Pool;
+use Swoole\Server;
 
 class PassiveProcess
 {

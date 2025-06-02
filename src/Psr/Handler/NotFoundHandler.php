@@ -2,10 +2,10 @@
 
 namespace SwooleIO\Psr\Handler;
 
-use OpenSwoole\Core\Psr\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use SwooleIO\Psr\Response;
 
 class NotFoundHandler implements RequestHandlerInterface
 {

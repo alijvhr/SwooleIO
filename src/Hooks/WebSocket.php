@@ -2,9 +2,9 @@
 
 namespace SwooleIO\Hooks;
 
-use OpenSwoole\Http\Request;
-use OpenSwoole\WebSocket\Frame;
-use OpenSwoole\WebSocket\Server;
+use Swoole\Http\Request;
+use Swoole\WebSocket\Frame;
+use Swoole\WebSocket\Server;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;

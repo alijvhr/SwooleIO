@@ -2,17 +2,17 @@
 
 namespace SwooleIO\EngineIO;
 
-use OpenSwoole\Core\Psr\ServerRequest;
-use OpenSwoole\Coroutine;
-use OpenSwoole\Http\Request;
-use OpenSwoole\Http\Response;
 use Psr\Http\Message\ServerRequestInterface;
+use Swoole\Coroutine;
+use Swoole\Http\Request;
+use Swoole\Http\Response;
 use SwooleIO\Constants\ConnectionStatus;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Exceptions\ConnectionError;
+use SwooleIO\Psr\ServerRequest;
 use SwooleIO\SocketIO\Nsp;
 use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
@@ -32,6 +32,7 @@ class Connection
     protected mixed $auth = '';
     protected ServerRequestInterface $request;
     protected int $fd = -1;
+    protected string $sfd = '';
     protected Transport $transport = Transport::polling;
     /** @var string[] $buffer */
     protected array $buffer = [];
@@ -75,7 +76,7 @@ class Connection
 
     public static function byFd(int $fd): ?Connection
     {
-        return self::recover(io()->table('fd')->get($fd, 'sid') ?? '');
+        return self::recover(io()->table('fd')->get(crc32($fd), 'sid') ?? '');
     }
 
     public static function saveAll(): void
@@ -103,10 +104,12 @@ class Connection
     {
         $io = io();
         $worker = $io->server()->getWorkerId();
-        $save = ['transport' => $this->transport->value, 'worker' => $worker];
+        $save = ['pid' => $this->pid, 'transport' => $this->transport->value, 'worker' => $worker];
         $sid = ['sid' => $this->sid, 'worker' => $worker];
-        if ($this->fd)
-            $io->table('fd')->set($this->fd, $sid);
+        if ($this->fd) {
+            $io->table('fd')->set($this->sfd, $sid);
+            $save['fd'] = $this->fd;
+        }
         if ($socket) $save['sock'] = $this;
         $io->table('sid')->set($this->sid, $save);
         $io->table('pid')->set($this->pid, $sid);
@@ -139,7 +142,9 @@ class Connection
         if (!isset($request)) return $this->request;
         $this->request = ServerRequest::from($request);
         $this->ua = $request->header['user-agent'] ?? '[null]';
-        $this->ip = $request->header['x-real-ip'] ?? explode(',', $request->header['x-forwarded-for'] ?? '')[0] ?: preg_replace('/(^|.*?:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', '$2', $request->server['remote_addr']) ?? '[null]';
+        $this->ip = $request->header['x-real-ip'] ??
+            explode(',', $request->header['x-forwarded-for'] ?? '')[0] ?:
+            preg_replace('/(^|.*?:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/', '$2', $request->server['remote_addr']) ?? '[null]';
         return $this;
     }
 
@@ -176,7 +181,7 @@ class Connection
                 if ($packet->getSocketType() == SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
                         $data = $packet->getData();
-                        $socket = Socket::create($this, $nsp, $data ?: null);
+                        $socket = Socket::create($this, $nsp);
                         if ($data) $this->auth($data);
                         try {
                             if (!Nsp::exists($nsp))
@@ -217,7 +222,11 @@ class Connection
             $connection->close();
         unset(self::$Connections[$this->fd]);
         $this->timers->clear();
-        $server = io()->server();
+        $io = io();
+        $server = $io->server();
+        $io->table('fd')->del($this->sfd);
+        $io->table('sid')->del($this->sid);
+        $io->table('pid')->del($this->pid);
         if ($server->isEstablished($this->fd))
             $server->disconnect($this->fd, reason: $reason);
         $this->status = ConnectionStatus::closed;
@@ -302,9 +311,10 @@ class Connection
         $io = io();
         if (!isset($fd)) return $this->fd;
         if ($fd != $this->fd) {
-            $io->table('fd')->del($this->fd);
+            $io->table('fd')->del($this->sfd);
             $this->fd = $fd;
-            $io->table('fd')->set($this->fd, ['sid' => $this->sid, 'worker' => $io->server()->getWorkerId()]);
+            $this->sfd = crc32($fd);
+            $io->table('fd')->set($this->sfd, ['sid' => $this->sid, 'worker' => $io->server()->getWorkerId()]);
         }
         return $this;
     }
