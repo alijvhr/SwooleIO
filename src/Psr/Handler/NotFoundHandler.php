@@ -13,7 +13,7 @@ class NotFoundHandler implements RequestHandlerInterface
 
     public function __construct()
     {
-        $this->responsePrototype = new Response('Not Found', 404, 'NotFound');
+        $this->responsePrototype = \Sparrow\response()?->withStatus(404, 'NotFound')->getBody()->write('Not Found') ?? new Response('Not Found', 404, 'NotFound');
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface

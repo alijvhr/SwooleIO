@@ -10,7 +10,6 @@ use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
 use Sparrow\Lib\Service;
 use Sparrow\Lib\Service\ServiceProcess;
-use Sparrow\Lib\Service\ServiceProxy;
 use SplFileInfo;
 use Swoole\Coroutine;
 use Swoole\Event;
@@ -21,7 +20,6 @@ use Swoole\WebSocket\Server as WebsocketServer;
 use SwooleIO\Exceptions\DuplicateTableNameException;
 use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Task;
-use SwooleIO\Hooks\UDP;
 use SwooleIO\Hooks\WebSocket;
 use SwooleIO\Lib\EventHandler;
 use SwooleIO\Lib\PassiveProcess;
@@ -36,7 +34,6 @@ use SwooleIO\SocketIO\Nsp;
 use SwooleIO\Time\TimeManager;
 use SwooleIO\Time\Timer;
 use Throwable;
-use TypeError;
 
 /**
  * @property-read LoggerInterface $log
@@ -74,13 +71,12 @@ class IO extends Singleton implements LoggerAwareInterface
      * @param string $alias
      * @return null|ServiceProcess|class-string<Service>
      */
-    public function service(string $alias): ServiceProxy|ServiceProcess|string|null
+    public function service(string $alias): ServiceProcess|string|null
     {
         if (!isset($this->services[$alias])) {
-            var_dump(array_keys($this->services));
             foreach ($this->services as $service) {
-                $name = $service instanceof ServiceProcess || $service instanceof ServiceProxy ? $service->service : (is_a($service, Service::class, true) ? $service : '');
-                if ($name && str_ends_with($name, $alias)) return $service;
+                $name = $service instanceof ServiceProcess ? $service->service : (is_a($service, Service::class, true) ? $service : null);
+                if (str_ends_with($name, $alias)) return $service;
             }
             return null;
         }
@@ -88,25 +84,21 @@ class IO extends Singleton implements LoggerAwareInterface
     }
 
     /**
-     * @param ServiceProxy|ServiceProcess|class-string<Service> $service
+     * @template T of (ServiceProcess|class-string<Service>)
+     * @param T $service
      * @param string|null $alias
-     * @param int|string|null $init
-     * @param string|null $server
-     * @return ServiceProxy
+     * @param bool $replace
+     * @return T
      */
-    public function addService(mixed $service, ?string $alias = null, int|string|null $init = null, string $server = null): Service\ServiceProxy
+    public function addService(mixed $service, ?string $alias = null, bool $replace = false): mixed
     {
-        if (!isset($alias)) {
-            if ($service instanceof ServiceProcess || $service instanceof ServiceProxy) {
-                $alias = $service->service;
-            } elseif (is_a($service, Service::class, true)) {
-                $alias = $service::name;
-            } else {
-                throw new TypeError('Service should be a class name or an instance of ServiceProcess');
-            }
+        if (!$replace) {
+            $alias ??= $service instanceof ServiceProcess ? $service->service : $service::name;
+            $orig = $alias;
+            for ($i = 1; isset($this->services[$alias]); $i++) $alias = $orig . $i;
         }
         $this->services[$alias] = $service;
-        return $service instanceof ServiceProxy ? $service : new ServiceProxy($alias, $init, $server);
+        return $service;
     }
 
     public function getTransports(): array
@@ -211,9 +203,7 @@ class IO extends Singleton implements LoggerAwareInterface
 //        $server->on('reload', $this->reloaded(...));
         $this->on('managerStart', fn() => TimeManager::end());
         foreach ($this->services as $service) {
-            if ($service instanceof ServiceProcess) {
-                $this->server->addProcess($service->process);
-            }
+            $this->server->addProcess($service->process);
         }
         $server->on('beforeShutdown', function () {
             $this->started = false;
@@ -430,7 +420,6 @@ class IO extends Singleton implements LoggerAwareInterface
         $this->reqHandler = Http::register($server)->handler;
         WebSocket::register($server);
         Task::register($server);
-        UDP::register($server);
         PassiveProcess::hook($server, 'Manager', 'SwooleIO\Process\Manager');
         PassiveProcess::hook($server, 'Worker', 'SwooleIO\Process\Worker');
     }

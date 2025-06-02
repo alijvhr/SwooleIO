@@ -38,13 +38,17 @@ class Http extends Hook
 
     public function onRequest(Request $request, Response $response): void
     {
-        if (str_starts_with($request->server['request_uri'], $this->io->path()))
+        if (str_starts_with($request->server['request_uri'], $this->io->path())) {
             $this->SocketIO($request, $response);
-        else {
-            ob_start(function (string $buffer) use ($response) {
-                if ($buffer)
-                    $response->write($buffer);
-            });
+//        } elseif (str_starts_with($request->server['request_uri'], '/testjson')) {
+//            $response->setHeader('Content-Type', 'application/json; charset=utf-8');
+//            $response->end('{"code":0,"message":"ok"}');
+        } else {
+            ob_start(/*function (string $buffer) use ($response) {
+                if ($buffer) {
+                    \Sparrow\response()?->getBody()->write($buffer);
+                }
+            }*/);
             foreach (['post', 'get', 'files', 'cookie'] as $field)
                 ContextManager::set($field, $request->$field);
             try {
