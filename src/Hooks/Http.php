@@ -75,16 +75,15 @@ class Http extends Hook
         $sid = &$request->get['sid'];
         $cors = io()->cors();
         if ($cors) {
-//            $response->header('access-control-allow-origin', $cors);
-//            $response->header('access-control-allow-methods', 'GET, POST');
         }
+        $response->header('access-control-allow-origin', $request->header['origin'] ?? '*');
+        $response->header('access-control-allow-methods', 'GET, POST');
         if ($request->get['transport'] == 'polling' && $sid) {
             $connection = Connection::recover($sid);
             if (isset($connection)) {
                 if ($request->getMethod() == 'POST') {
                     $connection->receive(Packet::from($request->getContent()));
-                    $response->write('ok');
-                    return $response->end();
+                    return $response->end('ok');
                 } elseif ($connection->transport() != Transport::polling || $connection->is(ConnectionStatus::upgrading, ConnectionStatus::upgraded)) {
                     return $response->end(EioPacket::create(EioPacketType::noop)->encode());
                 } else {

@@ -2,6 +2,7 @@
 
 namespace SwooleIO\EngineIO\Transport;
 
+use SwooleIO\EngineIO\Packet;
 use SwooleIO\Lib\Transport;
 
 class WebSocket extends Transport
@@ -12,17 +13,17 @@ class WebSocket extends Transport
         // TODO: Implement doClose() method.
     }
 
-    public function supportsFraming()
+    public function supportsFraming(): bool
     {
         // TODO: Implement supportsFraming() method.
     }
 
-    public function name()
+    public function name(): string
     {
         // TODO: Implement name() method.
     }
 
-    public function send(array $packets)
+    public function send(Packet ...$packets): void
     {
         // TODO: Implement send() method.
     }

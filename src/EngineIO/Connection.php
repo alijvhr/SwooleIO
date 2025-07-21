@@ -137,9 +137,9 @@ class Connection
         return $this;
     }
 
-    public function request(Request $request = null): ServerRequestInterface|Connection
+    public function request(Request $request = null): ServerRequestInterface|Connection|null
     {
-        if (!isset($request)) return $this->request;
+        if (!isset($request)) return $this->request?? null;
         $this->request = ServerRequest::from($request);
         $this->ua = $request->header['user-agent'] ?? '[null]';
         $this->ip = $request->header['x-real-ip'] ??
