@@ -112,7 +112,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this;
     }
 
-    public function path(string $path = null): string|self
+    public function path(string|null $path = null): string|self
     {
         if (!isset($path)) return $this->path;
         $this->path = $path;
@@ -131,7 +131,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->configs = array_merge($this->configs, $configs);
     }
 
-    public function dispatch_func(Server $server, int $fd, int $type, string $data = null): int
+    public function dispatch_func(Server $server, int $fd, int $type, ?string $data = null): int
     {
         $base = $fd % self::$cpus;
         if (!in_array($type, [0, 4, 5])) return $base;
@@ -203,7 +203,8 @@ class IO extends Singleton implements LoggerAwareInterface
 //        $server->on('reload', $this->reloaded(...));
         $this->on('managerStart', fn() => TimeManager::end());
         foreach ($this->services as $service) {
-            $this->server->addProcess($service->process);
+            if ($service instanceof ServiceProcess)
+                $this->server->addProcess($service->process);
         }
         $server->on('beforeShutdown', function () {
             $this->started = false;
@@ -357,7 +358,7 @@ class IO extends Singleton implements LoggerAwareInterface
         return $this->pid;
     }
 
-    public function cors(string $fqdn = null): IO|string
+    public function cors(string|null $fqdn = null): IO|string
     {
         if (!isset($fqdn))
             return $this->cors;
@@ -369,7 +370,7 @@ class IO extends Singleton implements LoggerAwareInterface
      * @throws DuplicateTableNameException
      * @throws ErrorException
      */
-    final protected function init(string $ID = null): void
+    final protected function init(string|null $ID = null): void
     {
         $this->path = '/socket.io';
         $this->timers = new TimeManager();
