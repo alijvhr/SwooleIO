@@ -1,10 +1,10 @@
 <?php
 
-namespace SwooleIO\Lib;
+namespace SwooleIO\VO;
 
-use SwooleIO\Psr\Event\Event;
+use SwooleIO\Psr\Event\Event as PsrEvent;
 
-class SimpleEvent extends Event
+class Event extends PsrEvent
 {
     public function __construct(public string $type, public $data = null)
     {
