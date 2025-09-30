@@ -7,7 +7,7 @@ use SwooleIO\Lib\Transport;
 class WebSocket extends Transport
 {
 
-    public function doClose(callable $fn = null)
+    public function doClose(?callable $fn = null)
     {
         // TODO: Implement doClose() method.
     }

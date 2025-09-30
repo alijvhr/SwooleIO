@@ -22,7 +22,7 @@ class Packet implements Iterator
     protected EioPacketType $engine_type;
     protected int $id;
 
-    public function __construct(string $packet = null)
+    public function __construct(?string $packet = null)
     {
         $this->order = [$this];
         $this->index = 0;

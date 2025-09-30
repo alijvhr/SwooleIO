@@ -30,7 +30,7 @@ class Connection
     public ?int $writable = null;
     public TimeManager $timers;
     protected mixed $auth = '';
-    protected ServerRequestInterface $request;
+    public protected(set) ServerRequestInterface $request;
     protected int $fd = -1;
     protected string $sfd = '';
     protected Transport $transport = Transport::polling;
@@ -50,12 +50,12 @@ class Connection
         $this->pid = $this->sid;
     }
 
-    public static function bySid(string $sid): ?Connection
+    public static function bySid(string $sid): ?static
     {
         return self::recover($sid);
     }
 
-    public static function recover(string $sid): ?Connection
+    public static function recover(string $sid): ?static
     {
         if (isset(self::$Connections[$sid]))
             return self::$Connections[$sid];
@@ -64,38 +64,41 @@ class Connection
         return $socket;
     }
 
-    public static function fetch(string $sid): ?self
+    public static function fetch(string $sid): ?static
     {
         return io()->table('sid')->get($sid, 'sock');
     }
 
-    public static function byPid(string $pid): ?Connection
+    public static function byPid(string $pid): ?static
     {
         return self::recover(io()->table('pid')->get($pid, 'sid') ?? '');
     }
 
-    public static function byFd(int $fd): ?Connection
+    public static function byFd(int $fd): ?static
     {
         return self::recover(io()->table('fd')->get(crc32($fd), 'sid') ?? '');
     }
 
     public static function saveAll(): void
     {
-        foreach (self::$Connections as $socket)
+        foreach (self::$Connections as $socket) {
             $socket->save();
+        }
     }
 
-    public static function create(string $sid, Transport $transport = Transport::polling): Connection
+    public static function create(string $sid, Transport $transport = Transport::polling): static
     {
-        $connection = new Connection($sid);
+        $connection = new static($sid);
         $connection->status = ConnectionStatus::connected;
         $packet = Packet::create(EioPacketType::ping);
-        $connection->timers->tick('ping', Connection::$pingInterval / 1000, fn() => $connection->push($packet) && $connection->resetPingTimeout());
-        if (isset($transport)) $connection->transport($transport)->save();
+        $connection->timers->tick('ping', static::$pingInterval / 1000, fn() => $connection->push($packet) && $connection->resetPingTimeout());
+        if (isset($transport)) {
+            $connection->transport($transport)->save();
+        }
         return self::$Connections[$sid] = $connection;
     }
 
-    public static function connect(string $sid): Connection
+    public static function connect(string $sid): static
     {
         return self::recover($sid) ?? self::create($sid);
     }
@@ -103,14 +106,16 @@ class Connection
     public function save(bool $socket = false): self
     {
         $io = io();
-        $worker = $io->server()->getWorkerId();
+        $worker = $io->server->getWorkerId();
         $save = ['pid' => $this->pid, 'transport' => $this->transport->value, 'worker' => $worker];
         $sid = ['sid' => $this->sid, 'worker' => $worker];
         if ($this->fd) {
             $io->table('fd')->set($this->sfd, $sid);
             $save['fd'] = $this->fd;
         }
-        if ($socket) $save['sock'] = $this;
+        if ($socket) {
+            $save['sock'] = $this;
+        }
         $io->table('sid')->set($this->sid, $save);
         $io->table('pid')->set($this->pid, $sid);
         return $this;
@@ -126,7 +131,7 @@ class Connection
         return $this->status;
     }
 
-    public function sid(string $sid = null): string|Connection
+    public function sid(?string $sid = null): string|static
     {
         if (!isset($sid)) return $this->sid;
         if ($sid != $this->sid) {
@@ -137,7 +142,7 @@ class Connection
         return $this;
     }
 
-    public function request(Request $request = null): ServerRequestInterface|Connection
+    public function request(?Request $request = null): ServerRequestInterface|static
     {
         if (!isset($request)) return $this->request;
         $this->request = ServerRequest::from($request);
@@ -152,7 +157,7 @@ class Connection
     {
         $this->async();
         $io = io();
-        $server = $io->server();
+        $server = $io->server;
         if ($this->transport() == Transport::polling)
             $this->resetTimeout();
         switch ($packet->getEngineType()) {
@@ -203,7 +208,7 @@ class Connection
         }
     }
 
-    public function transport(Transport $transport = null): Transport|Connection
+    public function transport(?Transport $transport = null): Transport|Connection
     {
         if (!isset($transport)) return $this->transport;
         if ($transport != $this->transport)
@@ -223,7 +228,7 @@ class Connection
         unset(self::$Connections[$this->fd]);
         $this->timers->clear();
         $io = io();
-        $server = $io->server();
+        $server = $io->server;
         $io->table('fd')->del($this->sfd);
         $io->table('sid')->del($this->sid);
         $io->table('pid')->del($this->pid);
@@ -250,7 +255,7 @@ class Connection
             $response->end(EioPacket::create(EioPacketType::noop));
             $this->writable = null;
         }
-        $server = io()->server();
+        $server = io()->server;
         switch ($this->transport) {
             case Transport::polling:
                 if (isset($this->writable) && $this->buffer) {
@@ -279,7 +284,7 @@ class Connection
     public function isConnected(): bool
     {
         $io = io();
-        if ($this->transport == Transport::websocket && $this->fd && $io->server()->isEstablished($this->fd))
+        if ($this->transport == Transport::websocket && $this->fd && $io->server->isEstablished($this->fd))
             return true;
         return false;
     }
@@ -293,10 +298,10 @@ class Connection
 
     /**
      * @template Auth of string|object|array|null
-     * @param Auth $auth
+     * @param object|array|Auth|null $auth
      * @return (Auth is null? Auth: Connection)
      */
-    public function auth(string|object|array $auth = null): string|object|array
+    public function auth(string|object|array|null $auth = null): string|object|array
     {
         if (!isset($auth)) {
             $this->async();
@@ -306,7 +311,7 @@ class Connection
         return $this;
     }
 
-    public function fd(int $fd = null): int|Connection
+    public function fd(?int $fd = null): int|Connection
     {
         $io = io();
         if (!isset($fd)) return $this->fd;
@@ -314,7 +319,7 @@ class Connection
             $io->table('fd')->del($this->sfd);
             $this->fd = $fd;
             $this->sfd = crc32($fd);
-            $io->table('fd')->set($this->sfd, ['sid' => $this->sid, 'worker' => $io->server()->getWorkerId()]);
+            $io->table('fd')->set($this->sfd, ['sid' => $this->sid, 'worker' => $io->server->getWorkerId()]);
         }
         return $this;
     }
