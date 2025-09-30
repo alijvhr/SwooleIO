@@ -11,7 +11,7 @@ use SwooleIO\Exceptions\TableWrongTypeColumn;
 class Table implements Iterator, Countable
 {
 
-    public const Types = [
+    public const array Types = [
         'int'    => [sTable::TYPE_INT, 8],
         'float'  => [sTable::TYPE_FLOAT, 0],
         'char'   => [sTable::TYPE_STRING, 16],
@@ -27,9 +27,9 @@ class Table implements Iterator, Countable
         'object' => [sTable::TYPE_STRING, 8192],
     ];
 
-    public const Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'object'];
+    public const array Castables = ['arr-2', 'arr-4', 'arr', 'json', 'list', 'object'];
 
-    public const DefaultSize = 1000;
+    public const int DefaultSize = 1000;
     public int $size;
     public int $memorySize;
     protected sTable $table;
@@ -189,7 +189,7 @@ class Table implements Iterator, Countable
      * @return int|string
      * @throws TableWrongTypeColumn
      */
-    public function push(string $key, string $column, int|string $value, string|int $name = null): int|string
+    public function push(string $key, string $column, int|string $value, string|int|null $name = null): int|string
     {
         return $this->update($key, $column, fn($data, $size, $type) => match ($type) {
             'list'                  => ["$data|$value", substr_count($data, '|') + 1, $value],
@@ -218,7 +218,7 @@ class Table implements Iterator, Countable
     }
 
     #[ArrayShape(['string', 'string', 'int'])]
-    protected function push_json(string $data, int|string $item, int|string $name = null): array
+    protected function push_json(string $data, int|string $item, int|string|null $name = null): array
     {
         $data = $this->castTo($data, 'json');
         if (!isset($name)) $data[] = $item;
