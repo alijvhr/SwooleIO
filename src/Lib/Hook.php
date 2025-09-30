@@ -9,12 +9,9 @@ abstract class Hook
 {
     public function __construct(protected object $target, bool $registerNow = false)
     {
-        if ($registerNow) $this->registerAll();
-    }
-
-    public static function to(object $target): static
-    {
-        return new static($target, true);
+        if ($registerNow) {
+            $this->registerAll();
+        }
     }
 
     /**
@@ -39,14 +36,12 @@ abstract class Hook
         $class = new ReflectionClass($this);
         $methods = $class->getMethods(ReflectionMethod::IS_PUBLIC);
         $list = [];
-        foreach ($methods as $method)
-            if (!$method->isStatic() && preg_match('/^on\p{Lu}/', $method->name))
+        foreach ($methods as $method) {
+            if (!$method->isStatic() && preg_match('/^on\p{Lu}/u', $method->name)) {
                 $list[] = substr($method->name, 2);
+            }
+        }
         return $list;
-        /*
-         * inline style
-         * array_reduce($methods, fn($list, $method) => [!$method->isStatic() && preg_match('/^on\p{Lu}/', $method->name) && $list[] = substr($method->name, 2), $list][1],[]);
-         */
     }
 
     /**

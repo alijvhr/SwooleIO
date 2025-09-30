@@ -2,15 +2,16 @@
 
 namespace SwooleIO\Lib;
 
-abstract class Singleton
+abstract class Singleton extends Builder
 {
 
     protected static array $instances = [];
 
     private function __construct(bool $run, ...$args)
     {
-        if ($run)
+        if ($run) {
             $this->init(...$args);
+        }
     }
 
     abstract protected function init(): void;
@@ -33,5 +34,13 @@ abstract class Singleton
 
     private function __clone()
     {
+    }
+
+    public static function __callStatic($name, $arguments): mixed
+    {
+        if (method_exists(static::class, $name)) {
+            return static::instance()->$name(...$arguments);
+        }
+        return null;
     }
 }
