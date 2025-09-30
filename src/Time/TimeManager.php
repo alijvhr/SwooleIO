@@ -65,7 +65,7 @@ class TimeManager implements ArrayAccess
         return $this->timers[$name] = Timer::tickAfter($after, $interval, $fn, $arguments);
     }
 
-    public function refresh(string $name = null): bool
+    public function refresh(?string $name = null): bool
     {
         if (!isset($name)) {
             foreach ($this->timers as $timer)
@@ -104,7 +104,7 @@ class TimeManager implements ArrayAccess
         $this->clear($offset);
     }
 
-    public function clear(string|int $name = null): bool
+    public function clear(string|int|null $name = null): bool
     {
         if ($this->stop($name)) {
             if (!isset($name))
@@ -116,7 +116,7 @@ class TimeManager implements ArrayAccess
         return false;
     }
 
-    public function start(string|int $name = null): bool
+    public function start(string|int|null $name = null): bool
     {
         if (!isset($name)) {
             foreach ($this->timers as $timer)
