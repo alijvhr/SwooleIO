@@ -10,9 +10,13 @@ if (!class_exists('CM')) {
 }
 
 if (!function_exists('io')) {
-    function io(): IO
+    function io(?string $ID = null): IO
     {
-        return IO::instance();
+        $io = IO::instance();
+        if (isset($ID)) {
+            $io->id($ID);
+        }
+        return $io;
     }
 }
 
