@@ -2,28 +2,71 @@
 
 namespace SwooleIO\Lib;
 
-use Swoole\Process\Pool;
-use Swoole\Server;
+use Swoole\Event as SwEvent;
+use Swoole\Process as SwProcess;
+use SwooleIO\IO;
+use SwooleIO\Time\TimeManager;
+use SwooleIO\Time\Timer;
 
-abstract class Process extends Singleton
+abstract class Process extends SwProcess
 {
 
-    protected Pool|Server $container;
-    protected ?int $workerID;
-    protected mixed $data;
+    /** @var static $current */
+    protected static Process $current;
+    protected IO $io;
 
-    final protected function init(...$args): void
+    public protected(set) bool $started = false;
+
+    public static function id(): ProcessID
     {
-        $this->container = $args[0];
-        $this->workerID = $args[1] ?? null;
-        $this->data = $args[2] ?? null;
-        $this->start();
+        return IO::instance()->id();
     }
 
-    abstract public function start();
+    public function __construct()
+    {
+        $this->io = IO::instance();
+        parent::__construct($this->run(...), enable_coroutine: true);
+    }
 
-    abstract public function exit();
+    public function start(): bool|int
+    {
+        $this->started = true;
+        return parent::start();
+    }
 
-    abstract public function stop();
+    public function stop(): void
+    {
+        if (isset(static::$current)) {
+            $this->onStop();
+        }
+        $this->exit();
+    }
+
+    public function exit(int $exit_code = 0): void
+    {
+        $this->started = false;
+        if (isset(static::$current)) {
+            $this->onExit();
+            TimeManager::end();
+            SwEvent::exit();
+        } else {
+            parent::exit($exit_code);
+        }
+    }
+
+    protected function run(): void
+    {
+        $this->started = true;
+        static::signal(SIGTERM, fn() => $this->stop());
+        Timer::tick(10, static fn() => gc_collect_cycles());
+        static::$current = $this;
+        $this->onStart();
+    }
+
+    abstract public function onStart();
+
+    public function onStop(): void { }
+
+    public function onExit(): void { }
 
 }
