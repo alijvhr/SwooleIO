@@ -2,11 +2,11 @@
 
 namespace SwooleIO\Hooks;
 
-use Swoole\Server;
 use Sparrow\Lib\Service\Packet\ServicePacket;
+use Swoole\Server;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\Hook;
-use SwooleIO\Lib\SimpleEvent;
+use SwooleIO\VO\Event;
 use function SwooleIO\io;
 
 class Task extends Hook
@@ -16,7 +16,7 @@ class Task extends Hook
     {
         $data = @unserialize($data);
         if (is_object($data)) {
-            ($this->target instanceof Server ? io() : $this->target)->dispatch(new SimpleEvent(ServicePacket::class, $data));
+            ($this->target instanceof Server ? io() : $this->target)->dispatch(new Event(ServicePacket::class, $data));
         } elseif (is_array($data)) {
             Connection::recover($data[1])?->push($data[2]);
         }
