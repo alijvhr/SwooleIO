@@ -26,7 +26,7 @@ abstract class Transport
         $this->binarySupport = $request->getQueryParam('b64') || $this->request->getMethod() == 'post';
     }
 
-    public function readyState(string $state = null): string|self
+    public function readyState(?string $state = null): string|self
     {
         if (!isset($state)) return $this->readyState;
         else $this->readyState = $state;
@@ -38,7 +38,7 @@ abstract class Transport
         $this->discarded = true;
     }
 
-    public function close(callable $fn = null): void
+    public function close(?callable $fn = null): void
     {
         if ('closed' === $this->readyState || 'closing' === $this->readyState) return;
 
