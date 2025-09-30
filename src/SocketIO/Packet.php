@@ -28,7 +28,7 @@ class Packet extends EioPacket
     protected int $binary_count;
     protected int $id;
 
-    public function __construct(string $packet = null)
+    public function __construct(?string $packet = null)
     {
         parent::__construct($packet);
     }

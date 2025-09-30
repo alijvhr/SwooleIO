@@ -81,7 +81,7 @@ class RemoteSocket implements SocketInterface
     public function push(Packet $packet): bool
     {
         $io = io();
-        $server = $io->server();
+        $server = $io->server;
         return $this->transport == Transport::websocket && $server->isEstablished($this->fd) && $server->push($this->fd, $packet->encode()) || $io->serverSideEmit($this->workerId, ['send', $this->sid, $packet]);
     }
 }

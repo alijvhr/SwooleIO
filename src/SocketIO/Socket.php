@@ -128,7 +128,7 @@ class Socket implements SocketInterface
 
     public function workerId(): int
     {
-        return io()->server()->getWorkerId();
+        return io()->server->getWorkerId();
     }
 
     public function fd(): ?int
