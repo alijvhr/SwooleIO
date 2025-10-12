@@ -12,11 +12,11 @@ use Swoole\Runtime;
 use Swoole\WebSocket\Server as WebsocketServer;
 use SwooleIO\Exceptions\DuplicateTableNameException;
 use SwooleIO\Exceptions\TableDoesNotExistsException;
-use SwooleIO\Hooks\Http;
 use SwooleIO\Hooks\Process;
+use SwooleIO\Hooks\Request\Http;
+use SwooleIO\Hooks\Request\UDP;
+use SwooleIO\Hooks\Request\WebSocket;
 use SwooleIO\Hooks\Task;
-use SwooleIO\Hooks\UDP;
-use SwooleIO\Hooks\WebSocket;
 use SwooleIO\IO\Configurable;
 use SwooleIO\IO\Server;
 use SwooleIO\IO\Timers;
@@ -54,7 +54,6 @@ class IO extends Singleton implements LoggerAwareInterface
     public readonly TableContainer $tables;
     public readonly ServiceManager $services;
     public readonly Watcher $watcher;
-    protected bool $reloading = false;
     protected bool $started = false;
     public array $transports = ['polling', 'websocket'];
     protected string $path;
@@ -136,15 +135,6 @@ class IO extends Singleton implements LoggerAwareInterface
     public function serverSideEmit(string $workerId, array $data): bool
     {
         return $this->server->sendMessage(serialize($data), $workerId);
-    }
-
-    public function reload(): void
-    {
-        if (function_exists('opcache_reset')) {
-            opcache_reset();
-        }
-        $this->reloading = true;
-        $this->server->reload();
     }
 
     /**
