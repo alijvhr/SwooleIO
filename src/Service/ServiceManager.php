@@ -5,23 +5,29 @@ namespace SwooleIO\Service;
 use ArrayAccess;
 use Countable;
 use Iterator;
+use SwooleIO\Service;
 use TypeError;
 
 class ServiceManager implements Iterator, Countable, ArrayAccess
 {
 
-    /** @var ServiceProcess[] */
+    /** @var class-string<Service>[]|ServiceProcess[] */
     protected array $services;
 
     /**
      * @param string $alias
-     * @return ServiceProxy|null
+     * @param bool $proxy
+     * @return class-string<Service>|ServiceProcess|ServiceProxy|null
      */
 
-    public function get(string $alias, bool $proxy = true): null|ServiceProcess|ServiceProxy
+    public function get(string $alias, bool $proxy = true): null|string|ServiceProcess|ServiceProxy
     {
         if (!isset($this->services[$alias])) {
-            $alias = array_find_key($this->services, static fn($service) => strtolower($service->service) === strtolower($alias));
+            /** @noinspection CallableParameterUseCaseInTypeContextInspection */
+            $alias = array_find_key(
+                $this->services,
+                static fn($item) => strtolower(is_string($item) ? $item : $item->service) === strtolower($alias)
+            );
             if (is_null($alias)) {
                 return null;
             }
@@ -33,12 +39,12 @@ class ServiceManager implements Iterator, Countable, ArrayAccess
     }
 
     /**
-     * @param ServiceProcess $service
+     * @param class-string<Service>|ServiceProcess $service
      * @param string|null $alias
      * @param int|string|null $init
      * @return ServiceProxy
      */
-    public function add(ServiceProcess $service, ?string $alias = null, int|string|null $init = null): ServiceProxy
+    public function add(string|ServiceProcess $service, ?string $alias = null, int|string|null $init = null): ServiceProxy
     {
         $this->services[$alias] = $service;
         return new ServiceProxy($alias, $init);
@@ -74,7 +80,7 @@ class ServiceManager implements Iterator, Countable, ArrayAccess
         return $this->get($offset) !== null;
     }
 
-    public function offsetGet(mixed $offset): ServiceProcess
+    public function offsetGet(mixed $offset): ServiceProcess|Service
     {
         return $this->get($offset);
     }
@@ -84,10 +90,10 @@ class ServiceManager implements Iterator, Countable, ArrayAccess
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        if ($value instanceof ServiceProcess) {
+        if ($value instanceof ServiceProcess || is_a($value, Service::class, true)) {
             $this->services[$offset] = $value;
         } else {
-            throw new TypeError('Object should be a ServiceProcess');
+            throw new TypeError('Object should be a ServiceProcess Or a Service class name');
         }
     }
 
