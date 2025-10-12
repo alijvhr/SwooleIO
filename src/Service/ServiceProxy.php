@@ -3,26 +3,30 @@
 namespace SwooleIO\Service;
 
 use SwooleIO\Service;
-use function SwooleIO\io;
 
 /**
  * @mixin Service
- * @property-read static $await
- * @property-read bool $response
  */
 class ServiceProxy
 {
 
-    static protected array $cache = [];
+    protected static array $cache = [];
 
-    protected bool $await = false;
+    public self $await {
+        get {
+            $this->return = true;
+            return $this;
+        }
+    }
+    public protected(set) bool $return = false;
 
-    public readonly bool $local;
+    public bool $local {
+        get => $this->server === io()->id()->server;
+    }
 
     public function __construct(public readonly string $service, public string|int|null $id = null, public ?string $server = null, ?ServiceProcess $process = null)
     {
         $this->server = $server ?: io()->id()->server;
-        $this->local = $this->server === io()->id()->server;
         if (isset($process)) {
             self::$cache[$this->service] = $process;
         }
@@ -45,29 +49,17 @@ class ServiceProxy
         if ($service instanceof ServiceProcess) {
             self::$cache[$this->service] = $service;
             $async = $service->call($this, $name, $arguments);
-            $return = $this->await ? $async?->get() : null;
-            $this->await = false;
+            $return = $this->return ? $async?->get() : null;
+            $this->return = false;
             return $return;
         }
 
-        if (is_a($this->service, Service::class, true)) {
-            return is_null($this->id) ? $this->service::$name(...$arguments) : $this->service::get($this->id)?->$name(...$arguments);
+        if (is_a($service, Service::class, true)) {
+            return is_null($this->id) ? $service::$name(...$arguments) : $service::get($this->id)?->$name(...$arguments);
         }
 
         return null;
 
-    }
-
-    public function __get(string $name)
-    {
-        switch ($name) {
-            case  'await':
-                $this->await = true;
-                return $this;
-            case  'response':
-                return $this->await;
-        }
-        return null;
     }
 
     public static function for(string $alias, int|string|null $id = null, ?string $server = null): static
