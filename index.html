@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io(":4000/", {
+            reconnectionDelayMax: 10000,
+            transports: ['websocket']
+        });
+        // socket.on('connect', () => {
+        //     setTimeout(() => socket.emit('ali', ()=>console.log('hello')), 2000);
+        //     setTimeout(() => socket.emit('ali2', ()=>console.log('hello')), 3000);
+        //     setTimeout(() => socket.emit('ali3'), 5000);
+        // });
+    </script>
+</head>
+<body>
+hello
+</body>
+</html>
