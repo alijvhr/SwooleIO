@@ -3,7 +3,6 @@
 namespace SwooleIO\IO;
 
 use RuntimeException;
-use Swoole\Coroutine;
 use Swoole\Event as SwEvent;
 use Swoole\Server as SwServer;
 use SwooleIO\Lib\ProcessID;
@@ -14,6 +13,8 @@ use SwooleIO\VO\Event;
 
 trait Server
 {
+
+    public protected(set) bool $reloading = false;
 
     public function listen(string $host, int $port, int $sockType): self
     {
@@ -91,16 +92,40 @@ trait Server
     }
 
 
+    protected function restart(bool $full = true): void
+    {
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+        if ($full) {
+            $this->server->shutdown();
+        } else {
+            $this->server->reload();
+        }
+        $this->reloading = false;
+    }
+
+    public function reload(bool $restart = false, float $delay = 0): void
+    {
+        if (!$this->timers->active('reload')) {
+            $this->reloading = true;
+            $this->timers->after('reload', $delay, fn() => $this->restart($restart));
+        }
+    }
+
+
     protected function onShutdown(): void
     {
         $this->dispatch(new Event('shutdown'));
+        if ($this->reloading) {
+            usleep(1e5);
+            $this->server->start();
+        }
     }
 
     protected function onStop(): void
     {
         $this->started = false;
-        Coroutine::set(['hook_flags' => 0]);
-        Coroutine::disableScheduler();
         TimeManager::end();
         SwEvent::Exit();
     }
