@@ -26,11 +26,11 @@ class Async
     {
         $this->result = $packet;
         $this->timer->stop();
-        if (isset($this->id))
+        if (isset($this->id)) {
             unset(self::$queue[$this->id]);
-        if (isset($this->cid)) {
-            if (Coroutine::exists($this->cid))
-                Coroutine::resume($this->cid);
+        }
+        if (isset($this->cid) && Coroutine::exists($this->cid)) {
+            Coroutine::resume($this->cid);
         }
     }
 

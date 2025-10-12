@@ -8,7 +8,6 @@ use Psr\Log\LogLevel;
 use Stringable;
 use Throwable;
 use Toolkit\Cli\Util\Clog;
-use function SwooleIO\interpolate;
 
 class FallbackLogger implements LoggerInterface
 {

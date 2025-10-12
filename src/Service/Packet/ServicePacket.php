@@ -3,7 +3,6 @@
 namespace SwooleIO\Service\Packet;
 
 use SwooleIO\Service\ServiceProxy;
-use function SwooleIO\io;
 
 abstract class ServicePacket
 {
