@@ -14,8 +14,6 @@ use SwooleIO\Service\Packet\Value;
 use SwooleIO\SocketIO\RemoteSocket;
 use SwooleIO\SocketIO\Socket;
 use Throwable;
-use function SwooleIO\debug;
-use function SwooleIO\io;
 
 /**
  *
@@ -53,11 +51,12 @@ class ServiceProcess extends Process
     {
         mt_srand();
         $name = $this->alias ?: $this->service;
-        $this->io->log->info("Service $name started");
-        $this->io->id(service: $name, worker: '');
         if (!is_a($this->service, Service::class, true)) {
             throw new ServiceNotFound("Constant service($this->service) should be FQDN of a 'Service' class child");
         }
+        $this->io->log->info("Service $name started");
+        $this->io->id(service: $name, worker: '');
+        $this->io->services->add($this->service, $name);
         if (method_exists($this->service, 'run')) {
             go(fn() => $this->service::run($this));
         }
@@ -111,7 +110,7 @@ class ServiceProcess extends Process
     public function call(ServiceProxy $to, string $name, array $args = []): ?Async
     {
         $packet = new Call($to, $name, $args);
-        $return = Async::wait($packet->id, io()->config('service.return.timeout') ?? 0.1);
+        $return = Async::wait($packet->id, io()->config('service.return.timeout') ?? 0.2);
         $this->send($packet);
         return $return;
     }
@@ -121,10 +120,14 @@ class ServiceProcess extends Process
         /** @var ServicePacket $packet */
         /** @noinspection UnserializeExploitsInspection */
         $packet = @unserialize($message);
+        if (!$packet instanceof ServicePacket) {
+            io()->log->error('Invalid service packet received');
+            return null;
+        }
         if ($packet instanceof Call) {
             try {
                 $data = $packet->to->{$packet->method}(...$packet->data);
-                if (!$packet->to->response) {
+                if (!$packet->to->return) {
                     return null;
                 }
                 $return = Value::for($packet, $data);
@@ -136,9 +139,7 @@ class ServiceProcess extends Process
             return $return;
         }
 
-        if (is_object($packet)) {
-            Async::setById($packet->id, $packet);
-        }
+        Async::setById($packet->id, $packet);
         return null;
     }
 
