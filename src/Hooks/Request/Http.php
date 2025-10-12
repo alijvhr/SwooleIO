@@ -1,9 +1,8 @@
 <?php
 
-namespace SwooleIO\Hooks;
+namespace SwooleIO\Hooks\Request;
 
 use Error;
-use Exception;
 use Swoole\ExitException;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
@@ -15,14 +14,13 @@ use SwooleIO\EngineIO\Connection;
 use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
-use SwooleIO\Memory\ContextManager;
 use SwooleIO\Psr\Handler\NotFoundHandler;
 use SwooleIO\Psr\Handler\QueueRequestHandler;
 use SwooleIO\Psr\Handler\StackRequestHandler;
 use SwooleIO\Psr\Response as PsrResponse;
 use SwooleIO\Psr\ServerRequest;
 use SwooleIO\SocketIO\Packet;
-use function SwooleIO\io;
+use Throwable;
 
 class Http extends Hook
 {
@@ -38,27 +36,24 @@ class Http extends Hook
 
     public function onRequest(Request $request, Response $response): void
     {
-        if (str_starts_with($request->server['request_uri'], $this->io->path()))
+        if (str_starts_with($request->server['request_uri'], $this->io->path())) {
             $this->SocketIO($request, $response);
-        else {
-            ob_start(/*static function (string $buffer) use ($response) {
-                if ($buffer) {
-                    $response->write($buffer);
-                }
-            }*/);
-            foreach (['post', 'get', 'files', 'cookie'] as $field) {
-                ContextManager::set($field, $request->$field);
+        } else {
+            ob_start();
+            foreach (['post', 'get', 'files', 'cookie', 'shared'] as $field) {
+                co_set("_$field", $request->$field ?? []);
             }
             try {
                 $serverRequest = ServerRequest::from($request);
-                ContextManager::set('request', $serverRequest);
-                ContextManager::set('response', new PsrResponse(''));
+                co_set('request', $serverRequest);
+                $serverResponse = &co_set('response', new PsrResponse(''));
                 $serverResponse = $this->handler->handle($serverRequest);
-            } catch (ExitException|Error|Exception $e) {
-                if ($e instanceof Error || (method_exists($e, 'getStatus') && $e->getStatus() !== 0)) {
+            } catch (ExitException|Error|Throwable $e) {
+//                io()->log->error($e);
+                if (!$e instanceof ExitException || $e->getStatus() !== 0) {
                     io()->log->error("Exit: {$e->getMessage()} in {$e->getFile()}({$e->getLine()}).\n{$e->getTraceAsString()}");
                 }
-                $serverResponse = ContextManager::get('response');
+                $serverResponse = co_get('response');
             }
             if (!isset($serverResponse)) {
                 $response->end();
