@@ -2,6 +2,7 @@
 
 namespace SwooleIO\Memory;
 
+use RuntimeException;
 use Swoole\Coroutine;
 
 class ContextManager
@@ -12,9 +13,9 @@ class ContextManager
      * @param T $value
      * @return T
      */
-    public static function set(string $key, mixed $value): mixed
+    public static function &set(string $key, mixed $value): mixed
     {
-        Coroutine::getContext(Coroutine::getCid())[$key] = $value;
+        Coroutine::getContext(Coroutine::getCid())[$key] = &$value;
         return $value;
     }
 
@@ -23,20 +24,31 @@ class ContextManager
      * @param string $key
      * @param T $default
      * @return T|mixed
+     * @throws RuntimeException
      */
-    public static function &get(string $key, mixed $default = null): mixed
+    public static function &find(string $key): mixed
     {
-        $cid = $ccid = Coroutine::getCid();
+        $cid = Coroutine::getCid();
         do {
             if (isset(Coroutine::getContext($cid)[$key])) {
                 return Coroutine::getContext($cid)[$key];
             }
             $cid = Coroutine::getPcid($cid);
         } while ($cid > 0);
-        if (isset($default))
-            return $default;
-        $ctx = Coroutine::getContext($ccid);
-        $ctx[$key] = null;
-        return $ctx[$key];
+        throw new \RuntimeException('Context not found in Coroutine');
+    }
+
+    public static function &get(string $key, bool $init = true): mixed
+    {
+        try {
+            $var = &static::find($key);
+        } catch (RuntimeException $e) {
+            if ($init) {
+                $var = &static::set($key, null);
+            } else {
+                $var = null;
+            }
+        }
+        return $var;
     }
 }
