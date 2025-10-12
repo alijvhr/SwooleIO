@@ -2,15 +2,12 @@
 
 namespace SwooleIO;
 
-use Sparrow\Exceptions\DuplicateServiceID;
-use Sparrow\Services\Lobby;
-use Sparrow\Services\Tournament;
 use Swoole\Event;
+use SwooleIO\Exceptions\DuplicateServiceID;
 use SwooleIO\Service\ServiceProxy;
 use SwooleIO\SocketIO\Packet;
 use SwooleIO\SocketIO\SocketInterface;
 use SwooleIO\Time\TimeManager;
-use Throwable;
 
 abstract class Service
 {
@@ -19,7 +16,7 @@ abstract class Service
     protected static array $joined = [];
     protected static array $instances = [];
     public static bool $no_save = false;
-    /** @var ServiceProxy[]|Lobby[]|Tournament[] $observers */
+    /** @var ServiceProxy[] $observers */
     public array $observers = [];
     /** @var SocketInterface[][] $subscribers */
     protected array $subscribers = [];
@@ -62,7 +59,9 @@ abstract class Service
     {
         if (is_null($id)) {
             $id = static::name . '-' . date('YmdHis');
-            for ($i = 0; isset(self::$instances[$id . $i]); $i++) ;
+            /** @noinspection ALL */
+            for ($i = 0; isset(self::$instances[$id . $i]); $i++) {
+            }
             $id .= $i;
         } elseif (isset(self::$instances[$id])) {
             throw new DuplicateServiceID('Service ' . self::class . " #$id already exists.");
@@ -76,15 +75,11 @@ abstract class Service
 
     /**
      * @param ServiceProxy|ServiceProxy[] $observers
+     * @throws DuplicateServiceID
      */
     public static function createObserved(Service|ServiceProxy|array $observers, array $properties, int|string|null $id = null): ?static
     {
-        try {
-            $service = self::create($id, ...$properties);
-        } catch (Throwable $exception) {
-            io()->log->error($exception);
-            return null;
-        }
+        $service = self::create($id, ...$properties);
         if (!is_array($observers))
             $observers = [$observers];
         $list = [];
