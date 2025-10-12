@@ -1,18 +1,20 @@
 <?php
 
-namespace SwooleIO\Hooks;
+namespace SwooleIO\Hooks\Request;
 
-use Sparrow\Lib\Service\Packet\Call;
 use Swoole\Http\Request;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server;
+use SwooleIO\Constants\EioPacketType;
+use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
+use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Exceptions\InvalidPacketException;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\SocketIO\Packet;
 
-class UDP extends Hook
+class WebSocket extends Hook
 {
 
     protected IO $io;
@@ -29,11 +31,13 @@ class UDP extends Hook
      * @return void
      */
 
-    public function onPacket(Server $server, string $data, array $client): void
+    public function onOpen(Server $server, Request $request): void
     {
-        $packet = @unserialize($data);
-        if ($packet instanceof Call) {
-            $data = $packet->to->{$packet->method}(...$packet->data);
+        if (isset($request->get['sid']))
+            $connection = Connection::recover($request->get['sid'])?->request($request)->fd($request->fd);
+        if (!isset($connection)) {
+            $connection = Connection::create($sid = $this->io->generateSid(), Transport::websocket)->request($request)->fd($request->fd)->save(true);
+            $connection->push(EioPacket::create(EioPacketType::open, ['sid' => $sid, 'upgrades' => [], 'maxPayload' => 1000000, 'pingInterval' => Connection::$pingInterval, 'pingTimeout' => Connection::$pingTimeout]));
         }
     }
 

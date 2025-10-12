@@ -7,7 +7,6 @@ use SwooleIO\Hooks\Process;
 use SwooleIO\Service\Async;
 use SwooleIO\Service\Packet\ServicePacket;
 use SwooleIO\VO\Event;
-use function SwooleIO\io;
 
 class Worker extends Process
 {

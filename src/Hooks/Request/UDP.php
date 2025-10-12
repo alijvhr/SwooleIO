@@ -1,20 +1,18 @@
 <?php
 
-namespace SwooleIO\Hooks;
+namespace SwooleIO\Hooks\Request;
 
 use Swoole\Http\Request;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server;
-use SwooleIO\Constants\EioPacketType;
-use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
-use SwooleIO\EngineIO\Packet as EioPacket;
 use SwooleIO\Exceptions\InvalidPacketException;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
+use SwooleIO\Service\Packet\Call;
 use SwooleIO\SocketIO\Packet;
 
-class WebSocket extends Hook
+class UDP extends Hook
 {
 
     protected IO $io;
@@ -31,13 +29,11 @@ class WebSocket extends Hook
      * @return void
      */
 
-    public function onOpen(Server $server, Request $request): void
+    public function onPacket(Server $server, string $data, array $client): void
     {
-        if (isset($request->get['sid']))
-            $connection = Connection::recover($request->get['sid'])->request($request)->fd($request->fd);
-        if (!isset($connection)) {
-            $connection = Connection::create($sid = $this->io->generateSid(), Transport::websocket)->request($request)->fd($request->fd)->save(true);
-            $connection->push(EioPacket::create(EioPacketType::open, ['sid' => $sid, 'upgrades' => [], 'maxPayload' => 1000000, 'pingInterval' => Connection::$pingInterval, 'pingTimeout' => Connection::$pingTimeout]));
+        $packet = @unserialize($data);
+        if ($packet instanceof Call) {
+            $data = $packet->to->{$packet->method}(...$packet->data);
         }
     }
 

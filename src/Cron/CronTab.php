@@ -5,7 +5,6 @@ namespace SwooleIO\Cron;
 use SplMinHeap;
 use SplObjectStorage;
 use SwooleIO\Cron;
-use function SwooleIO\io;
 
 class CronTab extends Cron
 {

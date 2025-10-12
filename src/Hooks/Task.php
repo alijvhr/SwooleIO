@@ -2,12 +2,11 @@
 
 namespace SwooleIO\Hooks;
 
-use Sparrow\Lib\Service\Packet\ServicePacket;
 use Swoole\Server;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\Hook;
+use SwooleIO\Service\Packet\ServicePacket;
 use SwooleIO\VO\Event;
-use function SwooleIO\io;
 
 class Task extends Hook
 {

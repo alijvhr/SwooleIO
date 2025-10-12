@@ -18,7 +18,6 @@ use SwooleIO\SocketIO\Packet as SioPacket;
 use SwooleIO\SocketIO\Socket;
 use SwooleIO\Time\TimeManager;
 use SwooleIO\Time\Timer;
-use function SwooleIO\io;
 
 class Connection
 {
@@ -169,9 +168,9 @@ class Connection
             case EioPacketType::ping:
                 $payload = $packet->getPayload();
                 $pong = Packet::create(EioPacketType::pong, $payload);
-                if ($this->status == ConnectionStatus::connected && $payload == 'probe') {
+                if ($this->status === ConnectionStatus::connected && $payload === 'probe') {
                     $this->upgrading(Transport::websocket);
-                    if ($this->upgrade == Transport::websocket)
+                    if ($this->upgrade === Transport::websocket)
                         $server->push($this->fd, $pong->encode());
                     if ($this->writable)
                         $this->flush();

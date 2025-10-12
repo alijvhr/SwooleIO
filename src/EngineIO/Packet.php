@@ -6,7 +6,6 @@ use Iterator;
 use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Exceptions\InvalidPacketException;
 use TypeError;
-use function SwooleIO\debug;
 
 class Packet implements Iterator
 {
@@ -47,9 +46,11 @@ class Packet implements Iterator
         $object = new static();
         $object->engine_type = $type;
         $count = count($data);
-        if ($count == 1)
+        if ($count === 1) {
             $data = $data[0];
-        elseif ($count == 0) $data = '';
+        } elseif ($count === 0) {
+            $data = '';
+        }
         $object->payload = is_array($data) ? json_encode($data) : $data;
         return $object;
     }
@@ -65,7 +66,10 @@ class Packet implements Iterator
 
     public function getEngineType(bool $as_int = false): int|EioPacketType|null
     {
-        return $this->valid ? ($as_int ? $this->engine_type->value : $this->engine_type) : null;
+        if (!$this->valid) {
+            return null;
+        }
+        return $as_int ? $this->engine_type->value : $this->engine_type;
     }
 
     public function getPayload(): ?string
@@ -121,7 +125,9 @@ class Packet implements Iterator
      */
     protected function parse(): self
     {
-        if (isset($this->valid)) return $this;
+        if (isset($this->valid)) {
+            return $this;
+        }
         $payloads = explode(chr(30), $this->packet);
         $payload = $payloads[0];
         $this->packet = $payload;
@@ -139,7 +145,7 @@ class Packet implements Iterator
             $this->valid = false;
             throw new InvalidPacketException();
         }
-        for ($i = 1; $i < count($payloads); $i++) {
+        for ($i = 1, $length = count($payloads); $i < $length; $i++) {
             $packet = new static($payloads[$i]);
             $this->append($packet);
         }
