@@ -4,7 +4,6 @@ namespace SwooleIO\SocketIO;
 
 use SwooleIO\Exceptions\ConnectionError;
 use SwooleIO\Lib\EventHandler;
-use function SwooleIO\io;
 
 class Nsp
 {

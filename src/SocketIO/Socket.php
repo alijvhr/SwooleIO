@@ -6,7 +6,6 @@ use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\Lib\EventHandler;
-use function SwooleIO\io;
 
 class Socket implements SocketInterface
 {

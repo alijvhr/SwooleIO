@@ -4,7 +4,6 @@ namespace SwooleIO\SocketIO;
 
 use SwooleIO\Constants\SioPacketType;
 use SwooleIO\Constants\Transport;
-use function SwooleIO\io;
 
 /**
  * @property-read $sid
