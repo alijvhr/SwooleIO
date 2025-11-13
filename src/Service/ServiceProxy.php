@@ -12,6 +12,7 @@ class ServiceProxy
 
     protected static array $cache = [];
 
+    /** @var static $await */
     public self $await {
         get {
             $this->return = true;

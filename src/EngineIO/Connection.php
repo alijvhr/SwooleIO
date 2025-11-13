@@ -56,10 +56,13 @@ class Connection
 
     public static function recover(string $sid): ?static
     {
-        if (isset(self::$Connections[$sid]))
+        if (isset(self::$Connections[$sid])) {
             return self::$Connections[$sid];
+        }
         $socket = self::fetch($sid);
-        if (isset($socket)) self::$Connections[$sid] = $socket;
+        if (isset($socket)) {
+            self::$Connections[$sid] = $socket;
+        }
         return $socket;
     }
 
@@ -133,7 +136,7 @@ class Connection
     public function sid(?string $sid = null): string|static
     {
         if (!isset($sid)) return $this->sid;
-        if ($sid != $this->sid) {
+        if ($sid !== $this->sid) {
             io()->table('sid')->del($this->sid);
             $this->sid = $sid;
             $this->save();
@@ -157,8 +160,9 @@ class Connection
         $this->async();
         $io = io();
         $server = $io->server;
-        if ($this->transport() == Transport::polling)
+        if ($this->transport() === Transport::polling) {
             $this->resetTimeout();
+        }
         switch ($packet->getEngineType()) {
             case EioPacketType::close:
                 $this->status = ConnectionStatus::closing;
@@ -170,48 +174,63 @@ class Connection
                 $pong = Packet::create(EioPacketType::pong, $payload);
                 if ($this->status === ConnectionStatus::connected && $payload === 'probe') {
                     $this->upgrading(Transport::websocket);
-                    if ($this->upgrade === Transport::websocket)
+                    if ($this->upgrade === Transport::websocket) {
                         $server->push($this->fd, $pong->encode());
-                    if ($this->writable)
+                    }
+                    if ($this->writable) {
                         $this->flush();
-                } else
+                    }
+                } else {
                     $this->push($pong);
+                }
                 break;
             case EioPacketType::pong:
                 $this->timers->clear('pong');
                 break;
             case EioPacketType::message:
                 $nsp = $packet->getNamespace();
-                if ($packet->getSocketType() == SioPacketType::connect) {
+                if ($packet->getSocketType() === SioPacketType::connect) {
                     if (!isset($this->sockets[$nsp])) {
                         $data = $packet->getData();
                         $socket = Socket::create($this, $nsp);
-                        if ($data) $this->auth($data);
+                        if ($data) {
+                            $this->auth($data);
+                        }
                         try {
-                            if (!Nsp::exists($nsp))
+                            if (!Nsp::exists($nsp)) {
                                 throw new ConnectionError('Invalid Namespace');
+                            }
                             Nsp::get($nsp)->connect($socket, $packet);
                             $socket->emitReserved(SioPacketType::connect, ['sid' => $socket->cid()]);
                         } catch (ConnectionError $e) {
                             $socket->emitReserved(SioPacketType::connect_error, ['message' => $e->getMessage()]);
                         }
                         $this->sockets[$nsp] = $socket;
-                    } else break;
-                } elseif (isset($this->sockets[$nsp])) $socket = $this->sockets[$nsp];
-                else break;
+                    } else {
+                        break;
+                    }
+                } elseif (isset($this->sockets[$nsp])) {
+                    $socket = $this->sockets[$nsp];
+                } else {
+                    break;
+                }
                 $socket->receive($packet);
                 break;
             case EioPacketType::upgrade:
                 $this->upgrade($this->upgrade);
                 break;
+            default:
         }
     }
 
     public function transport(?Transport $transport = null): Transport|Connection
     {
-        if (!isset($transport)) return $this->transport;
-        if ($transport != $this->transport)
+        if (!isset($transport)) {
+            return $this->transport;
+        }
+        if ($transport !== $this->transport) {
             $this->transport = $transport;
+        }
         return $this;
     }
 
@@ -222,8 +241,9 @@ class Connection
 
     public function disconnect(string $reason = ''): void
     {
-        foreach ($this->sockets as $connection)
+        foreach ($this->sockets as $connection) {
             $connection->close();
+        }
         unset(self::$Connections[$this->fd]);
         $this->timers->clear();
         $io = io();
@@ -231,8 +251,9 @@ class Connection
         $io->table('fd')->del($this->sfd);
         $io->table('sid')->del($this->sid);
         $io->table('pid')->del($this->pid);
-        if ($server->isEstablished($this->fd))
+        if ($server->isEstablished($this->fd)) {
             $server->disconnect($this->fd, reason: $reason);
+        }
         $this->status = ConnectionStatus::closed;
     }
 
@@ -283,7 +304,7 @@ class Connection
     public function isConnected(): bool
     {
         $io = io();
-        if ($this->transport == Transport::websocket && $this->fd && $io->server->isEstablished($this->fd))
+        if ($this->transport === Transport::websocket && $this->fd && $io->server->isEstablished($this->fd))
             return true;
         return false;
     }
@@ -296,9 +317,9 @@ class Connection
     }
 
     /**
-     * @template Auth of string|object|array|null
-     * @param object|array|Auth|null $auth
-     * @return (Auth is null? Auth: Connection)
+     * @param string|object|array|null $auth
+     * @return ($auth is null? string|object|array: Connection)
+     * @noinspection PhpDocSignatureInspection
      */
     public function auth(string|object|array|null $auth = null): string|object|array
     {
@@ -313,8 +334,10 @@ class Connection
     public function fd(?int $fd = null): int|Connection
     {
         $io = io();
-        if (!isset($fd)) return $this->fd;
-        if ($fd != $this->fd) {
+        if (!isset($fd)) {
+            return $this->fd;
+        }
+        if ($fd !== $this->fd) {
             $io->table('fd')->del($this->sfd);
             $this->fd = $fd;
             $this->sfd = crc32($fd);
@@ -367,21 +390,24 @@ class Connection
     public function resume(): void
     {
         $this->hold = false;
-        foreach ($this->coroutines as $coroutine)
+        foreach ($this->coroutines as $coroutine) {
             Coroutine::resume($coroutine);
+        }
         $this->coroutines = [];
     }
 
     protected function async(): void
     {
-        if (!$this->hold) return;
+        if (!$this->hold) {
+            return;
+        }
         $this->coroutines[] = Coroutine::getCid();
         Coroutine::yield();
     }
 
     protected function resetPingTimeout(): Timer
     {
-        return $this->timers->after('pong', Connection::$pingTimeout / 1000, fn() => $this->disconnect('ping timeout'));
+        return $this->timers->after('pong', self::$pingTimeout / 1000, fn() => $this->disconnect('ping timeout'));
     }
 
 }
