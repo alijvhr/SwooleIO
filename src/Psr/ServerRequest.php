@@ -39,6 +39,7 @@ class ServerRequest extends Request implements ServerRequestInterface
         string $protocolVersion = '1.1'
     )
     {
+        if($queryParams) $uri .= '?' . http_build_query($queryParams);
         parent::__construct($uri, $method, $body, $headers, $protocolVersion);
 
         $this->cookieParams = $cookies;
