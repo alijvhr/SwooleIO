@@ -78,7 +78,7 @@ class Request extends Message implements RequestInterface
 
     public function getRequestTarget(): string
     {
-        if ($this->requestTarget !== null) {
+        if (isset($this->requestTarget)) {
             return $this->requestTarget;
         }
 
