@@ -25,10 +25,7 @@ abstract class Service
     public readonly int|string $id;
     protected TimeManager $timers;
 
-    protected function __construct()
-    {
-
-    }
+    public function __construct() { }
 
     public static function get(int|string $id = 0): ?static
     {
