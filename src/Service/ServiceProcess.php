@@ -87,10 +87,9 @@ class ServiceProcess extends Process
         foreach ($packet->data as &$data) {
             if ($data instanceof Socket) {
                 $data = RemoteSocket::from($data);
+            } elseif ($data instanceof Service) {
+                $data = ServiceProxy::for($this->alias, $data->id ?? null);
             }
-//            elseif ($data instanceof Service) {
-//                $data = ServiceProxy::for($this->alias, $data->id ?? null);
-//            }
         }
         go(function () use ($packet) {
             try {
@@ -98,11 +97,10 @@ class ServiceProcess extends Process
                 if ($packet->to->service === 'worker' && $packet->to->id >= 0) {
                     io()->server->sendMessage($serialized, $packet->to->id);
                 } else {
-                    $this->write($serialized);
+                    io()->services->get($packet->to->service, false)?->write($serialized);
                 }
             } catch (Throwable $throwable) {
-                io()->log->error($throwable->getMessage());
-                io()->log->error($throwable->getTraceAsString());
+                io()->log->error($throwable);
             }
         });
     }
@@ -118,7 +116,6 @@ class ServiceProcess extends Process
     protected function receive(string $message): Value|Exception|null
     {
         /** @var ServicePacket $packet */
-        /** @noinspection UnserializeExploitsInspection */
         $packet = @unserialize($message);
         if (!$packet instanceof ServicePacket) {
             io()->log->error('Invalid service packet received');
@@ -138,7 +135,6 @@ class ServiceProcess extends Process
             }
             return $return;
         }
-
         Async::setById($packet->id, $packet);
         return null;
     }
