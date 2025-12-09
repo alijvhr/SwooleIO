@@ -57,6 +57,7 @@ use TypeError;
  * @method static self atDayOfWeek(int $from = 0) Schedule a task to run at a specific day of the week.
  * @method static self atDayOfMonth(int $from = 0) Schedule a task to run at a specific day of the month.
  * @method static self atMonth(int $from = 0) Schedule a task to run at a specific month.
+ * @method static self once(DateTime $datetime) Schedule a task to run once at a specific DateTime.
  *
  */
 class Cron
