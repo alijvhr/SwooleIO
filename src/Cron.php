@@ -63,7 +63,8 @@ use TypeError;
 class Cron
 {
 
-    protected UnitValue $dayOfMonth, $dayOfWeek, $month, $hour, $minute, $second;
+    /** @var UnitValue[] $values */
+    protected array $values = [];
 
     protected DateTime $once;
 
@@ -74,7 +75,6 @@ class Cron
 
     protected bool $active = false;
 
-    protected const array UNITS = ['second' => 's', 'minute' => 'i', 'hour' => 'H', 'day' => 'd', 'dayOfWeek' => 'w', 'dayOfMonth' => 'j'];
     protected int $id;
 
 
@@ -125,7 +125,7 @@ class Cron
     {
         if ($this->active)
             throw new Exception('Cannot modify schedule while timer is active.');
-        $this->$name = new UnitValue($name, $from, $through, $step);
+        $this->values[$name] = new UnitValue($name, $from, $through, $step);
         return $this;
     }
 
@@ -141,7 +141,7 @@ class Cron
     {
         if ($this->active)
             throw new Exception('Cannot modify schedule while timer is active.');
-        $this->$name = new UnitValue($name, $from);
+        $this->values[$name] = new UnitValue($name, $from);
         return $this;
     }
 
@@ -203,43 +203,41 @@ class Cron
                 return $this->once > $next ? $this->once->getTimestamp() : null;
             }
             // Check each unit type and find the next run time.
-            foreach (self::UNITS as $name => $symbol) {
-                if (isset($this->$name)) {
-                    $unit = $this->$name;
-                    $step = $unit->step;
-                    $u_current = +$next->format(self::UNITS[$name]);
-                    $u_next = $step ? $step - ($u_current - $unit->from) % $step : 0;
-                    if ($u_next && $u_next != $step && $u_current > $unit->from) {
-                        $next->modify("$u_next $name");
-//                        debug("Cron($this->id) time added $u_next $name resulting in " . $next->format('H:i:s'));
-                    }
-                    $u_current = +$next->format(self::UNITS[$name]);
-                    $overflow = isset($unit->through) && $unit->through < $u_current;
-                    if (!$step || $step > $u_current || $unit->from > $u_current || $overflow) {
-                        $next->modify("-$u_next $name");
-                        $next = $this->reset($next, $unit);
-                    }
+            foreach ($this->values as $name => $unit) {
+                $step = $unit->step;
+                $u_current = +$next->format($unit->symbol);
+                $u_next = $step ? $step - ($u_current - $unit->from) % $step : 0;
+                if ($u_next && $u_next != $step && $u_current > $unit->from) {
+                    $next->modify("$u_next $unit->unit");
+//                    debug("Cron($this->id) time added $u_next $name resulting in " . $next->format('Y-m-d H:i:s'));
+                }
+                $u_current = +$next->format($unit->symbol);
+                $overflow = isset($unit->through) && $unit->through < $u_current;
+                if (!$step || $step > $u_current || $unit->from > $u_current || $overflow) {
+                    $next->modify("-$u_next $unit->unit");
+                    $this->reset($next, $unit);
                 }
             }
         } catch (DateMalformedStringException $e) {
             io()->log->error($e);
             return null;
         }
+        debug("Cron($this->id) next run time calculated as " . $next->format('Y-m-d H:i:s'));
         return $next->getTimestamp();
     }
 
     private function reset(DateTime $time, UnitValue $unit): DateTime
     {
-        $u = $unit->name;
-        $current = +$time->format(self::UNITS[$u]);
-        if ($current <= $unit->from) $time->modify(($unit->from - $current) . " $u");
-        else {
+        $current = +$time->format($unit->symbol);
+        if ($current <= $unit->from) {
+            $time->modify(($unit->from - $current) . " $unit->unit");
+        }else {
             $max = $current + 1;
-            $time->modify("-$max $u");
-            $max = +$time->format(self::UNITS[$u]) + 1;
-            $time->modify(($max + 1 + $unit->from) . " $u");
+            $time->modify("-$max $unit->unit");
+            $max = +$time->format($unit->symbol) + 1;
+            $time->modify(($max + $unit->from) . " $unit->unit");
         }
-//        debug("Cron($this->id) time reset to $unit->from $u resulting in " . $time->format('H:i:s'));
+//        debug("Cron($this->id) time reset to $unit->from $unit->name resulting in " . $time->format('Y-m-d H:i:s'));
         return $time;
     }
 
