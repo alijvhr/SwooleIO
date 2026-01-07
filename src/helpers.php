@@ -2,7 +2,7 @@
 
 /** @noinspection JsonEncodingApiUsageInspection,PhpFunctionNamingConventionInspection,RandomApiMigrationInspection */
 
-use Sparrow\Modules\DateTime;
+use SwooleIO\Http\Cookie;
 use SwooleIO\IO;
 use SwooleIO\Memory\ContextManager;
 use SwooleIO\Psr\Response;
@@ -115,36 +115,9 @@ function _files(string $key, mixed $default = null): mixed
     return $var[$key] ?? $default;
 }
 
-function _cookie(string $key, mixed $default = null): mixed
+function _cookie(string $key): ?Cookie
 {
-    $var = co_get('_cookie');
-    return $var[$key] ?? $default;
-}
-
-function cookieSet(string $name, string $value, DateTime|null $expires = null, string $path = '/', string|null $domain = null, bool|null $secure = null): void
-{
-    $options = [
-        'path'   => $path ?? '/',
-        'domain' => '.' . ($domain ?? request()?->getUri()->getHost()),
-    ];
-//        if (isset($expires)) $options['expires'] = $expires->toLocale('D, d M Y H:i:s. \G\M\T', 'en');
-    if (isset($expires)) $options['expires'] = $expires->getTimestamp();
-    if (isset($secure)) $options['secure'] = $secure;
-    response()?->withCookie($name, $value, $options);
-    co_get('_cookie')[$name] = $value;
-}
-
-function cookieDel(string $name, string $path = '/', string|null $domain = null, bool|null $secure = null): void
-{
-    $options = [
-        'path'   => $path ?? '/',
-        'domain' => '.' . ($domain ?? request()?->getUri()->getHost()),
-    ];
-    if (isset($secure)) {
-        $options['secure'] = $secure;
-    }
-    response()?->withCookie($name, '', [...$options, 'expires' => 0]);
-    unset(co_get('_cookie')[$name]);
+    return co_get('_cookie')[$key] ?? null;
 }
 
 /**

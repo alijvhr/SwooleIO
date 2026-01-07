@@ -12,6 +12,7 @@ use SwooleIO\Constants\EioPacketType;
 use SwooleIO\Constants\Transport;
 use SwooleIO\EngineIO\Connection;
 use SwooleIO\EngineIO\Packet as EioPacket;
+use SwooleIO\Http\Cookie;
 use SwooleIO\IO;
 use SwooleIO\Lib\Hook;
 use SwooleIO\Psr\Handler\NotFoundHandler;
@@ -43,6 +44,12 @@ class Http extends Hook
             foreach (['post', 'get', 'files', 'cookie', 'shared'] as $field) {
                 co_set("_$field", $request->$field ?? []);
             }
+            foreach (co_get('_cookie') as $name => &$value) {
+                if (is_scalar($value)) {
+                    $value = Cookie::from($name, $value);
+                }
+            }
+            unset($value);
             try {
                 $serverRequest = ServerRequest::from($request);
                 co_set('request', $serverRequest);
