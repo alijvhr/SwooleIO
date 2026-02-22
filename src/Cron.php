@@ -222,7 +222,7 @@ class Cron
             io()->log->error($e);
             return null;
         }
-        debug("Cron($this->id) next run time calculated as " . $next->format('Y-m-d H:i:s'));
+//        debug("Cron($this->id) next run time calculated as " . $next->format('Y-m-d H:i:s'));
         return $next->getTimestamp();
     }
 
@@ -231,7 +231,7 @@ class Cron
         $current = +$time->format($unit->symbol);
         if ($current <= $unit->from) {
             $time->modify(($unit->from - $current) . " $unit->unit");
-        }else {
+        } else {
             $max = $current + 1;
             $time->modify("-$max $unit->unit");
             $max = +$time->format($unit->symbol) + 1;
